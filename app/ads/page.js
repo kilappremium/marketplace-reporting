@@ -191,18 +191,33 @@ export default function AdsPage() {
   async function fetchAll() {
     setLoading(true)
     const from = bulan + '-01'
-    const to   = bulan + '-31'
-    const results = await Promise.all(
-      ['shopee', 'tiktok', 'meta'].map(p =>
-        supabase.from(PLATFORM_CONFIG[p].table).select('*')
-          .gte('tanggal', from).lte('tanggal', to)
-          .order('tanggal', { ascending: false })
-      )
-    )
+    const to = bulan + '-31'
+    
+    const [r1, r2, r3] = await Promise.all([
+      supabase
+        .from('ads_shopee')
+        .select('*')
+        .gte('tanggal', from)
+        .lte('tanggal', to)
+        .order('tanggal', { ascending: false }),
+      supabase
+        .from('ads_tiktok')
+        .select('*')
+        .gte('tanggal', from)
+        .lte('tanggal', to)
+        .order('tanggal', { ascending: false }),
+      supabase
+        .from('ads_meta')
+        .select('*')
+        .gte('tanggal', from)
+        .lte('tanggal', to)
+        .order('tanggal', { ascending: false }),
+    ])
+    
     setData({
-      shopee: results[0].data || [],
-      tiktok: results[1].data || [],
-      meta:   results[2].data || [],
+      shopee: r1.data || [],
+      tiktok: r2.data || [],
+      meta: r3.data || [],
     })
     setLoading(false)
   }
