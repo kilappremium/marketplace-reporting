@@ -10,6 +10,81 @@ const PLATFORM_COLOR = {
   meta:   { bg: '#E6F1FB', text: '#0C447C', initial: 'M' },
 }
 
+const inputStyle = {
+  width: '100%',
+  boxSizing: 'border-box',
+  background: '#FFFFFF',
+  color: '#111111',
+  border: '1px solid #D1D5DB',
+  borderRadius: 8,
+  padding: '8px 12px',
+  fontSize: 13,
+}
+
+const inputReadOnlyStyle = {
+  background: '#F3F4F6',
+  color: '#6B7280',
+}
+
+const labelStyle = {
+  fontSize: 12,
+  color: '#374151',
+  fontWeight: 500,
+  display: 'block',
+  marginBottom: 4,
+}
+
+const cardStyle = {
+  background: '#FFFFFF',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+  borderRadius: 8,
+  padding: 20,
+}
+
+const funnelHeaderStyle = {
+  fontSize: 11,
+  fontWeight: 500,
+  color: '#6B7280',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+}
+
+const metricCardStyle = {
+  background: '#FFFFFF',
+  border: '1px solid #E5E7EB',
+  borderRadius: 8,
+  padding: '12px 14px',
+}
+
+const btnSaveStyle = {
+  padding: '8px 20px',
+  borderRadius: 8,
+  border: 'none',
+  background: '#16A34A',
+  color: '#FFFFFF',
+  cursor: 'pointer',
+  fontSize: 13,
+}
+
+const btnCancelStyle = {
+  padding: '8px 20px',
+  borderRadius: 8,
+  border: '1px solid #D1D5DB',
+  background: '#FFFFFF',
+  color: '#374151',
+  cursor: 'pointer',
+  fontSize: 13,
+}
+
+const tableThStyle = {
+  textAlign: 'left',
+  padding: '6px 8px',
+  color: '#6B7280',
+  fontWeight: 400,
+  background: '#F9FAFB',
+  whiteSpace: 'nowrap',
+}
+
 const EMPTY_FORM = {
   tanggal: new Date().toISOString().split('T')[0],
   platform: 'shopee',
@@ -191,7 +266,7 @@ export default function AdsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px', fontFamily: 'sans-serif' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px', fontFamily: 'sans-serif', background: '#F9FAFB', minHeight: '100%' }}>
 
       {notif && (
         <div style={{
@@ -204,7 +279,7 @@ export default function AdsPage() {
       )}
 
       {showForm && (
-        <div style={{ background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+        <div style={{ ...cardStyle, marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <p style={{ margin: 0, fontWeight: 500, fontSize: 15 }}>{editId ? 'Edit data kampanye' : 'Input data kampanye baru'}</p>
             <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM); setEditId(null) }}
@@ -218,25 +293,25 @@ export default function AdsPage() {
               { label: 'Tipe kampanye', name: 'tipe_kampanye', type: 'text', placeholder: 'cth: Brand, Performance' },
             ].map(f => (
               <div key={f.name}>
-                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <label style={labelStyle}>{f.label}</label>
                 <input type={f.type} name={f.name} value={form[f.name]} onChange={handleChange}
                   placeholder={f.placeholder || ''} onBlur={handleBlur}
-                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13, boxSizing: 'border-box' }} />
+                  style={inputStyle} />
               </div>
             ))}
             <div>
-              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Platform *</label>
+              <label style={labelStyle}>Platform *</label>
               <select name="platform" value={form.platform} onChange={handleChange}
-                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13 }}>
+                style={inputStyle}>
                 <option value="shopee">Shopee Ads</option>
                 <option value="tiktok">TikTok Ads</option>
                 <option value="meta">Meta Ads</option>
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Status</label>
+              <label style={labelStyle}>Status</label>
               <select name="status" value={form.status} onChange={handleChange}
-                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13 }}>
+                style={inputStyle}>
                 <option value="aktif">Aktif</option>
                 <option value="pause">Pause</option>
                 <option value="selesai">Selesai</option>
@@ -244,7 +319,7 @@ export default function AdsPage() {
             </div>
           </div>
 
-          <div style={{ margin: '16px 0 8px', fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Awareness</div>
+          <div style={{ ...funnelHeaderStyle, margin: '16px 0 8px' }}>Awareness</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
             {[
               { label: 'Impresi', name: 'impresi' },
@@ -252,15 +327,15 @@ export default function AdsPage() {
               { label: 'Frekuensi (auto)', name: 'frekuensi', readOnly: true },
             ].map(f => (
               <div key={f.name}>
-                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <label style={labelStyle}>{f.label}</label>
                 <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
                   readOnly={f.readOnly}
-                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13, boxSizing: 'border-box', background: f.readOnly ? '#f5f5f5' : '' }} />
+                  style={{ ...inputStyle, ...(f.readOnly ? inputReadOnlyStyle : {}) }} />
               </div>
             ))}
           </div>
 
-          <div style={{ margin: '8px 0', fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Interest & consideration</div>
+          <div style={{ ...funnelHeaderStyle, margin: '8px 0' }}>Interest & consideration</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
             {[
               { label: 'Klik', name: 'klik' },
@@ -269,29 +344,29 @@ export default function AdsPage() {
               { label: 'CPC (auto)', name: 'cpc', readOnly: true },
             ].map(f => (
               <div key={f.name}>
-                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <label style={labelStyle}>{f.label}</label>
                 <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
                   readOnly={f.readOnly}
-                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13, boxSizing: 'border-box', background: f.readOnly ? '#f5f5f5' : '' }} />
+                  style={{ ...inputStyle, ...(f.readOnly ? inputReadOnlyStyle : {}) }} />
               </div>
             ))}
           </div>
 
-          <div style={{ margin: '8px 0', fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Intent</div>
+          <div style={{ ...funnelHeaderStyle, margin: '8px 0' }}>Intent</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
             {[
               { label: 'Tambah keranjang', name: 'tambah_keranjang' },
               { label: 'Checkout', name: 'checkout' },
             ].map(f => (
               <div key={f.name}>
-                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <label style={labelStyle}>{f.label}</label>
                 <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
-                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13, boxSizing: 'border-box' }} />
+                  style={inputStyle} />
               </div>
             ))}
           </div>
 
-          <div style={{ margin: '8px 0', fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Konversi</div>
+          <div style={{ ...funnelHeaderStyle, margin: '8px 0' }}>Konversi</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
             {[
               { label: 'Konversi / pesanan', name: 'konversi' },
@@ -300,19 +375,19 @@ export default function AdsPage() {
               { label: 'CPA (auto)', name: 'cpa', readOnly: true },
             ].map(f => (
               <div key={f.name}>
-                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <label style={labelStyle}>{f.label}</label>
                 <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
                   readOnly={f.readOnly}
-                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13, boxSizing: 'border-box', background: f.readOnly ? '#f5f5f5' : '' }} />
+                  style={{ ...inputStyle, ...(f.readOnly ? inputReadOnlyStyle : {}) }} />
               </div>
             ))}
           </div>
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM); setEditId(null) }}
-              style={{ padding: '8px 20px', borderRadius: 6, border: '0.5px solid #ccc', background: 'none', cursor: 'pointer', fontSize: 13 }}>Batal</button>
+              style={btnCancelStyle}>Batal</button>
             <button onClick={handleSubmit} disabled={saving}
-              style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#111', color: '#fff', cursor: 'pointer', fontSize: 13 }}>
+              style={btnSaveStyle}>
               {saving ? 'Menyimpan...' : editId ? 'Perbarui data' : 'Simpan data'}
             </button>
           </div>
@@ -326,7 +401,7 @@ export default function AdsPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input type="month" value={bulan} onChange={e => setBulan(e.target.value)}
-            style={{ padding: '6px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13 }} />
+            style={{ ...inputStyle, width: 'auto' }} />
           <button onClick={() => { setShowForm(true); setForm(EMPTY_FORM); setEditId(null) }}
             style={{ padding: '7px 16px', borderRadius: 6, background: '#111', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13 }}>
             + Input data
@@ -352,14 +427,14 @@ export default function AdsPage() {
         <p style={{ color: '#888', fontSize: 14 }}>Memuat data...</p>
       ) : (
         <>
-          <div style={{ fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Awareness</div>
+          <div style={{ ...funnelHeaderStyle, marginBottom: 8 }}>Awareness</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 12 }}>
             {[
               { label: 'Total impresi', value: fmt(sumField(filtered, 'impresi')) },
               { label: 'Total jangkauan', value: fmt(sumField(filtered, 'jangkauan')) },
               { label: 'Frekuensi rata-rata', value: avgFrekuensi(filtered) + 'x' },
             ].map(m => (
-              <div key={m.label} style={{ background: '#f7f7f5', borderRadius: 8, padding: '12px 14px' }}>
+              <div key={m.label} style={metricCardStyle}>
                 <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
                 <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
               </div>
@@ -367,7 +442,7 @@ export default function AdsPage() {
           </div>
 
           <div style={{ borderTop: '0.5px dashed #e0e0e0', margin: '10px 0' }} />
-          <div style={{ fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Interest & consideration</div>
+          <div style={{ ...funnelHeaderStyle, marginBottom: 8 }}>Interest & consideration</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 12 }}>
             {[
               { label: 'Total klik', value: fmt(sumField(filtered, 'klik')) },
@@ -375,7 +450,7 @@ export default function AdsPage() {
               { label: 'CPC rata-rata', value: fmtRp(avgCpc(filtered)) },
               { label: 'Total belanja iklan', value: fmtRp(sumField(filtered, 'belanja_iklan')) },
             ].map(m => (
-              <div key={m.label} style={{ background: '#f7f7f5', borderRadius: 8, padding: '12px 14px' }}>
+              <div key={m.label} style={metricCardStyle}>
                 <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
                 <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
               </div>
@@ -383,13 +458,13 @@ export default function AdsPage() {
           </div>
 
           <div style={{ borderTop: '0.5px dashed #e0e0e0', margin: '10px 0' }} />
-          <div style={{ fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Intent</div>
+          <div style={{ ...funnelHeaderStyle, marginBottom: 8 }}>Intent</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 12 }}>
             {[
               { label: 'Tambah keranjang', value: fmt(sumField(filtered, 'tambah_keranjang')) },
               { label: 'Checkout', value: fmt(sumField(filtered, 'checkout')) },
             ].map(m => (
-              <div key={m.label} style={{ background: '#f7f7f5', borderRadius: 8, padding: '12px 14px' }}>
+              <div key={m.label} style={metricCardStyle}>
                 <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
                 <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
               </div>
@@ -397,7 +472,7 @@ export default function AdsPage() {
           </div>
 
           <div style={{ borderTop: '0.5px dashed #e0e0e0', margin: '10px 0' }} />
-          <div style={{ fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Konversi</div>
+          <div style={{ ...funnelHeaderStyle, marginBottom: 8 }}>Konversi</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 20 }}>
             {[
               { label: 'Total konversi', value: fmt(sumField(filtered, 'konversi')) },
@@ -405,14 +480,14 @@ export default function AdsPage() {
               { label: 'ROAS', value: avgRoas(filtered) + 'x' },
               { label: 'CPA rata-rata', value: fmtRp(avgCpa(filtered)) },
             ].map(m => (
-              <div key={m.label} style={{ background: '#f7f7f5', borderRadius: 8, padding: '12px 14px' }}>
+              <div key={m.label} style={metricCardStyle}>
                 <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
                 <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
               </div>
             ))}
           </div>
 
-          <div style={{ background: '#fff', border: '0.5px solid #e8e8e8', borderRadius: 12, padding: 16 }}>
+          <div style={{ ...cardStyle, padding: 16 }}>
             <p style={{ margin: '0 0 12px', fontWeight: 500, fontSize: 14 }}>
               Detail kampanye {activeTab !== 'all' ? '— ' + PLATFORM_LABEL[activeTab] : '— semua platform'}
             </p>
@@ -422,21 +497,21 @@ export default function AdsPage() {
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
-                    <tr style={{ borderBottom: '0.5px solid #e8e8e8' }}>
-                      <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 400, whiteSpace: 'nowrap' }}>Tanggal</th>
-                      {activeTab === 'all' && <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Platform</th>}
-                      <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 400, whiteSpace: 'nowrap' }}>Kampanye</th>
-                      <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Status</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400, whiteSpace: 'nowrap' }}>Impresi</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Klik</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>CTR</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400, whiteSpace: 'nowrap' }}>Krnjng</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Checkout</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Konversi</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Pendapatan</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>ROAS</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>CPA</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Aksi</th>
+                    <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
+                      <th style={tableThStyle}>Tanggal</th>
+                      {activeTab === 'all' && <th style={{ ...tableThStyle, whiteSpace: 'normal' }}>Platform</th>}
+                      <th style={tableThStyle}>Kampanye</th>
+                      <th style={{ ...tableThStyle, whiteSpace: 'normal' }}>Status</th>
+                      <th style={{ ...tableThStyle, textAlign: 'right' }}>Impresi</th>
+                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>Klik</th>
+                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>CTR</th>
+                      <th style={{ ...tableThStyle, textAlign: 'right' }}>Krnjng</th>
+                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>Checkout</th>
+                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>Konversi</th>
+                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>Pendapatan</th>
+                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>ROAS</th>
+                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>CPA</th>
+                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
