@@ -6,7 +6,6 @@ import TabelData from "@/components/TabelData";
 import {
   aggregateWeeklySales,
   formatRupiah,
-  formatRoas,
   formatTanggal,
 } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
@@ -22,7 +21,7 @@ function StatCard({ label, value, color = "text-zinc-900" }) {
 
 export default function DashboardPage() {
   const [penjualan, setPenjualan] = useState([]);
-  const [ads, setAds] = useState([]);
+  const [adsData, setAdsData] = useState([]);
   const [affiliate, setAffiliate] = useState([]);
   const [livestream, setLivestream] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,25 +32,39 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
 
-      const [penjualanRes, adsRes, affiliateRes, livestreamRes] = await Promise.all([
-        supabase.from("penjualan").select("*").order("tanggal", { ascending: false }),
-        supabase.from("ads").select("*").order("tanggal", { ascending: false }),
-        supabase.from("affiliate").select("*").order("tanggal", { ascending: false }),
-        supabase.from("livestream").select("*").order("tanggal", { ascending: false }),
-      ]);
+      const [penjualanRes, shopeeRes, tiktokRes, metaRes, affiliateRes, livestreamRes] =
+        await Promise.all([
+          supabase.from("penjualan").select("*").order("tanggal", { ascending: false }),
+          supabase.from("ads_shopee").select("*").order("tanggal", { ascending: false }),
+          supabase.from("ads_tiktok").select("*").order("tanggal", { ascending: false }),
+          supabase.from("ads_meta").select("*").order("tanggal", { ascending: false }),
+          supabase.from("affiliate").select("*").order("tanggal", { ascending: false }),
+          supabase.from("livestream").select("*").order("tanggal", { ascending: false }),
+        ]);
 
-      const fetchError =
-        penjualanRes.error?.message ||
-        adsRes.error?.message ||
-        affiliateRes.error?.message ||
-        livestreamRes.error?.message;
+      const errors = [
+        penjualanRes.error,
+        shopeeRes.error,
+        tiktokRes.error,
+        metaRes.error,
+        affiliateRes.error,
+        livestreamRes.error,
+      ]
+        .filter(Boolean)
+        .map((err) => err.message);
 
-      if (fetchError) {
-        setError(fetchError);
+      if (errors.length) {
+        setError(errors.join(" | "));
       }
 
+      const combinedAds = [
+        ...(shopeeRes.data ?? []).map((row) => ({ ...row, platform: "Shopee Ads" })),
+        ...(tiktokRes.data ?? []).map((row) => ({ ...row, platform: "TikTok Ads" })),
+        ...(metaRes.data ?? []).map((row) => ({ ...row, platform: "Meta Ads" })),
+      ].sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+
       setPenjualan(penjualanRes.data ?? []);
-      setAds(adsRes.data ?? []);
+      setAdsData(combinedAds);
       setAffiliate(affiliateRes.data ?? []);
       setLivestream(livestreamRes.data ?? []);
       setLoading(false);
@@ -66,13 +79,13 @@ export default function DashboardPage() {
   );
 
   const totalBiayaIklan = useMemo(
-    () => ads.reduce((sum, row) => sum + (Number(row.biaya_iklan) || 0), 0),
-    [ads],
+    () => adsData.reduce((sum, row) => sum + (Number(row.biaya_iklan) || 0), 0),
+    [adsData],
   );
 
-  const totalPendapatanAds = useMemo(
-    () => ads.reduce((sum, row) => sum + (Number(row.pendapatan) || 0), 0),
-    [ads],
+  const totalOmzetIklan = useMemo(
+    () => adsData.reduce((sum, row) => sum + (Number(row.omzet) || 0), 0),
+    [adsData],
   );
 
   const totalKomisiAffiliate = useMemo(
@@ -94,10 +107,10 @@ export default function DashboardPage() {
         sumber: "Penjualan",
         nilai: row.total,
       })),
-      ...ads.map((row) => ({
+      ...adsData.map((row) => ({
         ...row,
         sumber: "Iklan",
-        nilai: row.pendapatan,
+        nilai: row.omzet,
         keterangan: row.nama_kampanye,
       })),
       ...affiliate.map((row) => ({
@@ -117,7 +130,7 @@ export default function DashboardPage() {
     return combined
       .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal))
       .slice(0, 10);
-  }, [penjualan, ads, affiliate, livestream]);
+  }, [penjualan, adsData, affiliate, livestream]);
 
   const columns = [
     {
@@ -181,13 +194,13 @@ export default function DashboardPage() {
           color="text-blue-600"
         />
         <StatCard
-          label="Biaya Iklan"
+          label="Total Biaya Iklan"
           value={loading ? "..." : formatRupiah(totalBiayaIklan)}
           color="text-violet-600"
         />
         <StatCard
-          label="ROAS Iklan"
-          value={loading ? "..." : formatRoas(totalPendapatanAds, totalBiayaIklan)}
+          label="Total Omzet Iklan"
+          value={loading ? "..." : formatRupiah(totalOmzetIklan)}
           color="text-amber-600"
         />
         <StatCard
@@ -214,7 +227,7 @@ export default function DashboardPage() {
         loading={loading}
         emptyMessage="Belum ada data."
         getRowKey={(row, index) =>
-          `${row.sumber}-${row.id ?? row.tanggal}-${index}`
+          `${row.sumber}-${row.platform ?? ""}-${row.id ?? row.tanggal}-${index}`
         }
       />
     </div>

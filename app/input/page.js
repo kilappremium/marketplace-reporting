@@ -25,21 +25,6 @@ const tabs = [
     ],
   },
   {
-    id: "ads",
-    label: "Ads",
-    table: "ads",
-    numericFields: ["biaya_iklan", "klik", "konversi", "pendapatan"],
-    fields: [
-      { name: "tanggal", label: "Tanggal", type: "date", required: true },
-      { name: "platform", label: "Platform", type: "text", required: true, placeholder: "Meta Ads, Google Ads, Shopee Ads" },
-      { name: "nama_kampanye", label: "Nama Kampanye", type: "text", required: true },
-      { name: "biaya_iklan", label: "Biaya Iklan (IDR)", type: "number", required: true, min: 0 },
-      { name: "klik", label: "Klik", type: "number", required: true, min: 0 },
-      { name: "konversi", label: "Konversi", type: "number", required: true, min: 0 },
-      { name: "pendapatan", label: "Pendapatan (IDR)", type: "number", required: true, min: 0 },
-    ],
-  },
-  {
     id: "affiliate",
     label: "Affiliate",
     table: "affiliate",
@@ -234,7 +219,7 @@ export default function InputPage() {
       </header>
 
       <div className="mb-6 rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {tabs.map((tab) => (
             <button
               key={tab.id}
