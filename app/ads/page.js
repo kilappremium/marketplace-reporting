@@ -2,152 +2,214 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
-const PLATFORMS = ['shopee', 'tiktok', 'meta']
-const PLATFORM_LABEL = { shopee: 'Shopee Ads', tiktok: 'TikTok Ads', meta: 'Meta Ads' }
-const PLATFORM_COLOR = {
-  shopee: { bg: '#FFF0E6', text: '#993C1D', initial: 'S' },
-  tiktok: { bg: '#F0F0FF', text: '#3C3489', initial: 'T' },
-  meta:   { bg: '#E6F1FB', text: '#0C447C', initial: 'M' },
+// ─── Format helpers ───────────────────────────────────────
+const fmt    = n => (n == null || n === '') ? '-' : Number(n).toLocaleString('id-ID')
+const fmtRp  = n => (n == null || n === '') ? '-' : 'Rp ' + Number(n).toLocaleString('id-ID')
+const fmtPct = n => (n == null || n === '') ? '-' : Number(n).toFixed(2) + '%'
+const fmtX   = n => (n == null || n === '') ? '-' : Number(n).toFixed(2) + 'x'
+const sum    = (arr, f) => arr.reduce((a, b) => a + (Number(b[f]) || 0), 0)
+const avg    = (arr, f) => arr.length ? (sum(arr, f) / arr.length).toFixed(2) : 0
+
+// ─── Metrik per platform ──────────────────────────────────
+const SHOPEE_FIELDS = [
+  { section: 'Awareness',             fields: [
+    { label: 'Impresi',        name: 'impresi',        type: 'number' },
+    { label: 'CPM (Rp)',       name: 'cpm',            type: 'number', auto: true },
+  ]},
+  { section: 'Interest & Consideration', fields: [
+    { label: 'Klik',           name: 'klik',           type: 'number' },
+    { label: 'CTR % (auto)',   name: 'ctr',            type: 'number', auto: true },
+    { label: 'CPC (auto)',     name: 'cpc',            type: 'number', auto: true },
+  ]},
+  { section: 'Intent',                fields: [
+    { label: 'ATC',            name: 'atc',            type: 'number' },
+    { label: 'Rasio ATC % (auto)', name: 'rasio_atc', type: 'number', auto: true },
+  ]},
+  { section: 'Konversi',              fields: [
+    { label: 'Pesanan',        name: 'pesanan',        type: 'number' },
+    { label: 'CVR % (auto)',   name: 'cvr',            type: 'number', auto: true },
+    { label: 'Produk terjual', name: 'produk_terjual', type: 'number' },
+    { label: 'Biaya iklan (Rp)', name: 'biaya_iklan', type: 'number' },
+    { label: 'Omzet (Rp)',     name: 'omzet',          type: 'number' },
+    { label: 'ROI (auto)',     name: 'roi',            type: 'number', auto: true },
+    { label: 'CPA (auto)',     name: 'cpa',            type: 'number', auto: true },
+    { label: 'AOV (auto)',     name: 'aov',            type: 'number', auto: true },
+  ]},
+]
+
+const TIKTOK_FIELDS = [
+  { section: 'Konversi & Biaya',      fields: [
+    { label: 'Biaya iklan (Rp)', name: 'biaya_iklan', type: 'number' },
+    { label: 'Omzet (Rp)',     name: 'omzet',          type: 'number' },
+    { label: 'ROI (auto)',     name: 'roi',            type: 'number', auto: true },
+    { label: 'Pesanan',        name: 'pesanan',        type: 'number' },
+    { label: 'CPA (auto)',     name: 'cpa',            type: 'number', auto: true },
+  ]},
+]
+
+const META_FIELDS = [
+  { section: 'Awareness',             fields: [
+    { label: 'Impresi',        name: 'impresi',        type: 'number' },
+    { label: 'CPM (Rp)',       name: 'cpm',            type: 'number', auto: true },
+  ]},
+  { section: 'Interest & Consideration', fields: [
+    { label: 'Klik',           name: 'klik',           type: 'number' },
+    { label: 'CTR % (auto)',   name: 'ctr',            type: 'number', auto: true },
+    { label: 'CPC (auto)',     name: 'cpc',            type: 'number', auto: true },
+    { label: 'View Page',      name: 'view_page',      type: 'number' },
+    { label: 'View Page Rate % (auto)', name: 'view_page_rate', type: 'number', auto: true },
+  ]},
+  { section: 'Intent',                fields: [
+    { label: 'ATC',            name: 'atc',            type: 'number' },
+    { label: 'Rasio ATC % (auto)', name: 'rasio_atc', type: 'number', auto: true },
+  ]},
+  { section: 'Konversi',              fields: [
+    { label: 'Pesanan',        name: 'pesanan',        type: 'number' },
+    { label: 'CVR % (auto)',   name: 'cvr',            type: 'number', auto: true },
+    { label: 'Biaya iklan (Rp)', name: 'biaya_iklan', type: 'number' },
+    { label: 'Omzet (Rp)',     name: 'omzet',          type: 'number' },
+    { label: 'ROI (auto)',     name: 'roi',            type: 'number', auto: true },
+    { label: 'CPA (auto)',     name: 'cpa',            type: 'number', auto: true },
+    { label: 'AOV (auto)',     name: 'aov',            type: 'number', auto: true },
+  ]},
+]
+
+const PLATFORM_CONFIG = {
+  shopee: { label: 'Shopee Ads', table: 'ads_shopee', fields: SHOPEE_FIELDS, color: { bg: '#FFF0E6', text: '#993C1D' } },
+  tiktok: { label: 'TikTok GMV Max', table: 'ads_tiktok', fields: TIKTOK_FIELDS, color: { bg: '#F0F0FF', text: '#3C3489' } },
+  meta:   { label: 'Meta Ads', table: 'ads_meta', fields: META_FIELDS, color: { bg: '#E6F1FB', text: '#0C447C' } },
 }
 
-const inputStyle = {
-  width: '100%',
-  boxSizing: 'border-box',
-  background: '#FFFFFF',
-  color: '#111111',
-  border: '1px solid #D1D5DB',
-  borderRadius: 8,
-  padding: '8px 12px',
-  fontSize: 13,
+const ALL_FIELDS = {
+  shopee: ['impresi','cpm','klik','ctr','cpc','atc','rasio_atc','pesanan','cvr','produk_terjual','biaya_iklan','omzet','roi','cpa','aov'],
+  tiktok: ['biaya_iklan','omzet','roi','pesanan','cpa'],
+  meta:   ['impresi','cpm','klik','ctr','cpc','view_page','view_page_rate','atc','rasio_atc','pesanan','cvr','biaya_iklan','omzet','roi','cpa','aov'],
 }
 
-const inputReadOnlyStyle = {
-  background: '#F3F4F6',
-  color: '#6B7280',
+function buildEmpty(platform) {
+  const base = { tanggal: new Date().toISOString().split('T')[0], nama_kampanye: '', tipe_kampanye: '', status: 'aktif' }
+  ALL_FIELDS[platform].forEach(f => base[f] = '')
+  return base
 }
 
-const labelStyle = {
-  fontSize: 12,
-  color: '#374151',
-  fontWeight: 500,
-  display: 'block',
-  marginBottom: 4,
+function autoCalc(form, platform) {
+  const f = { ...form }
+  const bi = Number(f.biaya_iklan) || 0
+  const imp = Number(f.impresi) || 0
+  const klik = Number(f.klik) || 0
+  const pesanan = Number(f.pesanan) || 0
+  const omzet = Number(f.omzet) || 0
+  const atc = Number(f.atc) || 0
+  const vp = Number(f.view_page) || 0
+
+  if (imp && bi)    f.cpm          = (bi / imp * 1000).toFixed(0)
+  if (imp && klik)  f.ctr          = (klik / imp * 100).toFixed(2)
+  if (bi && klik)   f.cpc          = (bi / klik).toFixed(0)
+  if (klik && atc)  f.rasio_atc    = (atc / klik * 100).toFixed(2)
+  if (klik && pesanan) f.cvr       = (pesanan / klik * 100).toFixed(2)
+  if (bi && omzet)  f.roi          = (omzet / bi).toFixed(2)
+  if (bi && pesanan) f.cpa         = (bi / pesanan).toFixed(0)
+  if (omzet && pesanan) f.aov      = (omzet / pesanan).toFixed(0)
+  if (platform === 'meta' && klik && vp) f.view_page_rate = (vp / klik * 100).toFixed(2)
+
+  return f
 }
 
-const cardStyle = {
-  background: '#FFFFFF',
-  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-  borderRadius: 8,
-  padding: 20,
+const statusBadge = {
+  aktif:   { bg: '#DCFCE7', text: '#166534', label: 'Aktif' },
+  pause:   { bg: '#FEF9C3', text: '#854D0E', label: 'Pause' },
+  selesai: { bg: '#FEE2E2', text: '#991B1B', label: 'Selesai' },
 }
 
-const funnelHeaderStyle = {
-  fontSize: 11,
-  fontWeight: 500,
-  color: '#6B7280',
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
+// ─── Tabel kolom per platform ─────────────────────────────
+const TABLE_COLS = {
+  shopee: [
+    { label: 'Kampanye', key: 'nama_kampanye', fmt: v => v },
+    { label: 'Status', key: 'status', fmt: (v) => v },
+    { label: 'Impresi', key: 'impresi', fmt: fmt },
+    { label: 'CPM', key: 'cpm', fmt: fmtRp },
+    { label: 'Klik', key: 'klik', fmt: fmt },
+    { label: 'CTR', key: 'ctr', fmt: fmtPct },
+    { label: 'CPC', key: 'cpc', fmt: fmtRp },
+    { label: 'ATC', key: 'atc', fmt: fmt },
+    { label: 'Rasio ATC', key: 'rasio_atc', fmt: fmtPct },
+    { label: 'Pesanan', key: 'pesanan', fmt: fmt },
+    { label: 'CVR', key: 'cvr', fmt: fmtPct },
+    { label: 'Produk Terjual', key: 'produk_terjual', fmt: fmt },
+    { label: 'Biaya Iklan', key: 'biaya_iklan', fmt: fmtRp },
+    { label: 'Omzet', key: 'omzet', fmt: fmtRp },
+    { label: 'ROI', key: 'roi', fmt: fmtX },
+    { label: 'CPA', key: 'cpa', fmt: fmtRp },
+    { label: 'AOV', key: 'aov', fmt: fmtRp },
+  ],
+  tiktok: [
+    { label: 'Kampanye', key: 'nama_kampanye', fmt: v => v },
+    { label: 'Status', key: 'status', fmt: v => v },
+    { label: 'Biaya Iklan', key: 'biaya_iklan', fmt: fmtRp },
+    { label: 'Omzet', key: 'omzet', fmt: fmtRp },
+    { label: 'ROI', key: 'roi', fmt: fmtX },
+    { label: 'Pesanan', key: 'pesanan', fmt: fmt },
+    { label: 'CPA', key: 'cpa', fmt: fmtRp },
+  ],
+  meta: [
+    { label: 'Kampanye', key: 'nama_kampanye', fmt: v => v },
+    { label: 'Status', key: 'status', fmt: v => v },
+    { label: 'Biaya Iklan', key: 'biaya_iklan', fmt: fmtRp },
+    { label: 'Omzet', key: 'omzet', fmt: fmtRp },
+    { label: 'ROI', key: 'roi', fmt: fmtX },
+    { label: 'Impresi', key: 'impresi', fmt: fmt },
+    { label: 'CPM', key: 'cpm', fmt: fmtRp },
+    { label: 'Klik', key: 'klik', fmt: fmt },
+    { label: 'CTR', key: 'ctr', fmt: fmtPct },
+    { label: 'CPC', key: 'cpc', fmt: fmtRp },
+    { label: 'View Page', key: 'view_page', fmt: fmt },
+    { label: 'View Page Rate', key: 'view_page_rate', fmt: fmtPct },
+    { label: 'ATC', key: 'atc', fmt: fmt },
+    { label: 'Rasio ATC', key: 'rasio_atc', fmt: fmtPct },
+    { label: 'Pesanan', key: 'pesanan', fmt: fmt },
+    { label: 'CVR', key: 'cvr', fmt: fmtPct },
+    { label: 'CPA', key: 'cpa', fmt: fmtRp },
+    { label: 'AOV', key: 'aov', fmt: fmtRp },
+  ],
 }
 
-const metricCardStyle = {
-  background: '#FFFFFF',
-  border: '1px solid #E5E7EB',
-  borderRadius: 8,
-  padding: '12px 14px',
-}
-
-const btnSaveStyle = {
-  padding: '8px 20px',
-  borderRadius: 8,
-  border: 'none',
-  background: '#16A34A',
-  color: '#FFFFFF',
-  cursor: 'pointer',
-  fontSize: 13,
-}
-
-const btnCancelStyle = {
-  padding: '8px 20px',
-  borderRadius: 8,
-  border: '1px solid #D1D5DB',
-  background: '#FFFFFF',
-  color: '#374151',
-  cursor: 'pointer',
-  fontSize: 13,
-}
-
-const tableThStyle = {
-  textAlign: 'left',
-  padding: '6px 8px',
-  color: '#6B7280',
-  fontWeight: 400,
-  background: '#F9FAFB',
-  whiteSpace: 'nowrap',
-}
-
-const EMPTY_FORM = {
-  tanggal: new Date().toISOString().split('T')[0],
-  platform: 'shopee',
-  nama_kampanye: '',
-  tipe_kampanye: '',
-  status: 'aktif',
-  belanja_iklan: '',
-  impresi: '',
-  jangkauan: '',
-  frekuensi: '',
-  klik: '',
-  ctr: '',
-  cpc: '',
-  tambah_keranjang: '',
-  checkout: '',
-  konversi: '',
-  pendapatan: '',
-  roas: '',
-  cpa: '',
-}
-
-function fmt(n) {
-  if (!n && n !== 0) return '-'
-  return Number(n).toLocaleString('id-ID')
-}
-function fmtRp(n) {
-  if (!n && n !== 0) return '-'
-  return 'Rp ' + Number(n).toLocaleString('id-ID')
-}
-function fmtX(n) {
-  if (!n && n !== 0) return '-'
-  return Number(n).toFixed(2) + 'x'
-}
-function fmtPct(n) {
-  if (!n && n !== 0) return '-'
-  return Number(n).toFixed(2) + '%'
-}
-
+// ─── Komponen utama ───────────────────────────────────────
 export default function AdsPage() {
-  const [activeTab, setActiveTab] = useState('all')
-  const [data, setData] = useState([])
+  const [activeTab, setActiveTab] = useState('shopee')
+  const [data, setData] = useState({ shopee: [], tiktok: [], meta: [] })
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [formPlatform, setFormPlatform] = useState('shopee')
+  const [form, setForm] = useState(buildEmpty('shopee'))
   const [saving, setSaving] = useState(false)
   const [notif, setNotif] = useState('')
   const [editId, setEditId] = useState(null)
   const [bulan, setBulan] = useState(new Date().toISOString().slice(0, 7))
 
-  useEffect(() => { fetchData() }, [bulan])
+  useEffect(() => { fetchAll() }, [bulan])
 
-  async function fetchData() {
+  async function fetchAll() {
     setLoading(true)
     const from = bulan + '-01'
-    const to = bulan + '-31'
-    const { data: rows } = await supabase
-      .from('ads')
-      .select('*')
-      .gte('tanggal', from)
-      .lte('tanggal', to)
-      .order('tanggal', { ascending: false })
-    setData(rows || [])
+    const to   = bulan + '-31'
+    const results = await Promise.all(
+      ['shopee', 'tiktok', 'meta'].map(p =>
+        supabase.from(PLATFORM_CONFIG[p].table).select('*')
+          .gte('tanggal', from).lte('tanggal', to)
+          .order('tanggal', { ascending: false })
+      )
+    )
+    setData({
+      shopee: results[0].data || [],
+      tiktok: results[1].data || [],
+      meta:   results[2].data || [],
+    })
     setLoading(false)
+  }
+
+  function handlePlatformChange(p) {
+    setFormPlatform(p)
+    setForm(buildEmpty(p))
   }
 
   function handleChange(e) {
@@ -155,163 +217,131 @@ export default function AdsPage() {
     setForm(f => ({ ...f, [name]: value }))
   }
 
-  function autoHitung(f) {
-    const updated = { ...f }
-    if (f.impresi && f.klik)
-      updated.ctr = ((f.klik / f.impresi) * 100).toFixed(2)
-    if (f.belanja_iklan && f.klik)
-      updated.cpc = (f.belanja_iklan / f.klik).toFixed(0)
-    if (f.belanja_iklan && f.pendapatan)
-      updated.roas = (f.pendapatan / f.belanja_iklan).toFixed(2)
-    if (f.belanja_iklan && f.konversi)
-      updated.cpa = (f.belanja_iklan / f.konversi).toFixed(0)
-    if (f.jangkauan && f.impresi)
-      updated.frekuensi = (f.impresi / f.jangkauan).toFixed(2)
-    return updated
-  }
-
   function handleBlur() {
-    setForm(f => autoHitung(f))
+    setForm(f => autoCalc(f, formPlatform))
   }
 
   async function handleSubmit() {
-    if (!form.nama_kampanye || !form.tanggal || !form.platform) {
-      setNotif('error:Nama kampanye, tanggal, dan platform wajib diisi!')
+    if (!form.nama_kampanye || !form.tanggal) {
+      setNotif('error:Nama kampanye dan tanggal wajib diisi!')
       return
     }
     setSaving(true)
-    const payload = {
-      tanggal: form.tanggal,
-      platform: form.platform,
-      nama_kampanye: form.nama_kampanye,
-      tipe_kampanye: form.tipe_kampanye,
-      status: form.status,
-      belanja_iklan: Number(form.belanja_iklan) || 0,
-      impresi: Number(form.impresi) || 0,
-      jangkauan: Number(form.jangkauan) || 0,
-      frekuensi: Number(form.frekuensi) || 0,
-      klik: Number(form.klik) || 0,
-      ctr: Number(form.ctr) || 0,
-      cpc: Number(form.cpc) || 0,
-      tambah_keranjang: Number(form.tambah_keranjang) || 0,
-      checkout: Number(form.checkout) || 0,
-      konversi: Number(form.konversi) || 0,
-      pendapatan: Number(form.pendapatan) || 0,
-      roas: Number(form.roas) || 0,
-      cpa: Number(form.cpa) || 0,
-    }
+    const payload = { tanggal: form.tanggal, nama_kampanye: form.nama_kampanye, tipe_kampanye: form.tipe_kampanye, status: form.status }
+    ALL_FIELDS[formPlatform].forEach(f => payload[f] = Number(form[f]) || 0)
+
+    const tbl = PLATFORM_CONFIG[formPlatform].table
     if (editId) {
-      await supabase.from('ads').update(payload).eq('id', editId)
+      await supabase.from(tbl).update(payload).eq('id', editId)
       setNotif('ok:Data berhasil diperbarui!')
       setEditId(null)
     } else {
-      await supabase.from('ads').insert([payload])
+      await supabase.from(tbl).insert([payload])
       setNotif('ok:Data berhasil disimpan!')
     }
     setSaving(false)
-    setForm(EMPTY_FORM)
+    setForm(buildEmpty(formPlatform))
     setShowForm(false)
-    fetchData()
+    fetchAll()
     setTimeout(() => setNotif(''), 3000)
   }
 
-  function handleEdit(row) {
-    setForm({ ...row, tanggal: row.tanggal })
+  function handleEdit(row, platform) {
+    setFormPlatform(platform)
+    setForm({ ...buildEmpty(platform), ...row })
     setEditId(row.id)
     setShowForm(true)
     window.scrollTo(0, 0)
   }
 
-  async function handleDelete(id) {
+  async function handleDelete(id, platform) {
     if (!confirm('Yakin hapus data ini?')) return
-    await supabase.from('ads').delete().eq('id', id)
-    fetchData()
+    await supabase.from(PLATFORM_CONFIG[platform].table).delete().eq('id', id)
+    fetchAll()
   }
 
-  const filtered = activeTab === 'all' ? data : data.filter(d => d.platform === activeTab)
+  const rows = data[activeTab] || []
+  const cfg  = PLATFORM_CONFIG[activeTab]
 
-  function sumField(arr, field) {
-    return arr.reduce((a, b) => a + (Number(b[field]) || 0), 0)
-  }
-  function avgRoas(arr) {
-    const totalBelanja = sumField(arr, 'belanja_iklan')
-    const totalPendapatan = sumField(arr, 'pendapatan')
-    return totalBelanja ? (totalPendapatan / totalBelanja).toFixed(2) : 0
-  }
-  function avgCpa(arr) {
-    const totalBelanja = sumField(arr, 'belanja_iklan')
-    const totalKonversi = sumField(arr, 'konversi')
-    return totalKonversi ? (totalBelanja / totalKonversi).toFixed(0) : 0
-  }
-  function avgCtr(arr) {
-    const totalImpresi = sumField(arr, 'impresi')
-    const totalKlik = sumField(arr, 'klik')
-    return totalImpresi ? ((totalKlik / totalImpresi) * 100).toFixed(2) : 0
-  }
-  function avgFrekuensi(arr) {
-    const totalImpresi = sumField(arr, 'impresi')
-    const totalJangkauan = sumField(arr, 'jangkauan')
-    return totalJangkauan ? (totalImpresi / totalJangkauan).toFixed(2) : 0
-  }
-  function avgCpc(arr) {
-    const totalBelanja = sumField(arr, 'belanja_iklan')
-    const totalKlik = sumField(arr, 'klik')
-    return totalKlik ? (totalBelanja / totalKlik).toFixed(0) : 0
-  }
-
-  const statusBadge = {
-    aktif:   { bg: '#EAF3DE', text: '#27500A', label: 'Aktif' },
-    pause:   { bg: '#FAEEDA', text: '#633806', label: 'Pause' },
-    selesai: { bg: '#FCEBEB', text: '#791F1F', label: 'Selesai' },
+  // summary cards per active tab
+  const summaryCards = {
+    shopee: [
+      { label: 'Total biaya iklan', value: fmtRp(sum(rows, 'biaya_iklan')) },
+      { label: 'Total omzet', value: fmtRp(sum(rows, 'omzet')) },
+      { label: 'ROI rata-rata', value: fmtX(avg(rows, 'roi')) },
+      { label: 'Total pesanan', value: fmt(sum(rows, 'pesanan')) },
+      { label: 'Total impresi', value: fmt(sum(rows, 'impresi')) },
+      { label: 'Total klik', value: fmt(sum(rows, 'klik')) },
+      { label: 'Total ATC', value: fmt(sum(rows, 'atc')) },
+      { label: 'AOV rata-rata', value: fmtRp(avg(rows, 'aov')) },
+    ],
+    tiktok: [
+      { label: 'Total biaya iklan', value: fmtRp(sum(rows, 'biaya_iklan')) },
+      { label: 'Total omzet', value: fmtRp(sum(rows, 'omzet')) },
+      { label: 'ROI rata-rata', value: fmtX(avg(rows, 'roi')) },
+      { label: 'Total pesanan', value: fmt(sum(rows, 'pesanan')) },
+      { label: 'CPA rata-rata', value: fmtRp(avg(rows, 'cpa')) },
+    ],
+    meta: [
+      { label: 'Total biaya iklan', value: fmtRp(sum(rows, 'biaya_iklan')) },
+      { label: 'Total omzet', value: fmtRp(sum(rows, 'omzet')) },
+      { label: 'ROI rata-rata', value: fmtX(avg(rows, 'roi')) },
+      { label: 'Total pesanan', value: fmt(sum(rows, 'pesanan')) },
+      { label: 'Total impresi', value: fmt(sum(rows, 'impresi')) },
+      { label: 'Total klik', value: fmt(sum(rows, 'klik')) },
+      { label: 'Total ATC', value: fmt(sum(rows, 'atc')) },
+      { label: 'AOV rata-rata', value: fmtRp(avg(rows, 'aov')) },
+    ],
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px', fontFamily: 'sans-serif', background: '#F9FAFB', minHeight: '100%' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px', fontFamily: 'sans-serif', background: '#F9FAFB', minHeight: '100vh' }}>
 
       {notif && (
-        <div style={{
-          padding: '12px 16px', borderRadius: 8, marginBottom: 16, fontSize: 14,
-          background: notif.startsWith('ok:') ? '#EAF3DE' : '#FCEBEB',
-          color: notif.startsWith('ok:') ? '#27500A' : '#791F1F',
-        }}>
+        <div style={{ padding: '12px 16px', borderRadius: 8, marginBottom: 16, fontSize: 14, background: notif.startsWith('ok:') ? '#DCFCE7' : '#FEE2E2', color: notif.startsWith('ok:') ? '#166534' : '#991B1B' }}>
           {notif.replace(/^(ok|error):/, '')}
         </div>
       )}
 
+      {/* ── FORM INPUT ── */}
       {showForm && (
-        <div style={{ ...cardStyle, marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <p style={{ margin: 0, fontWeight: 500, fontSize: 15 }}>{editId ? 'Edit data kampanye' : 'Input data kampanye baru'}</p>
-            <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM); setEditId(null) }}
-              style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>×</button>
+        <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <p style={{ margin: 0, fontWeight: 600, fontSize: 16, color: '#111' }}>{editId ? 'Edit data kampanye' : 'Input data kampanye baru'}</p>
+            <button onClick={() => { setShowForm(false); setEditId(null) }} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888' }}>×</button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          {/* Pilih platform PERTAMA */}
+          <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+            <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>1. Pilih platform terlebih dahulu</p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
+                <button key={key} onClick={() => handlePlatformChange(key)}
+                  style={{ padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: formPlatform === key ? pc.color.text : '#E5E7EB', background: formPlatform === key ? pc.color.bg : '#fff', color: formPlatform === key ? pc.color.text : '#6B7280' }}>
+                  {pc.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Info dasar */}
+          <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>2. Informasi kampanye</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
             {[
               { label: 'Tanggal *', name: 'tanggal', type: 'date' },
-              { label: 'Nama kampanye *', name: 'nama_kampanye', type: 'text' },
+              { label: 'Nama kampanye *', name: 'nama_kampanye', type: 'text', placeholder: 'cth: Flash Sale Juni' },
               { label: 'Tipe kampanye', name: 'tipe_kampanye', type: 'text', placeholder: 'cth: Brand, Performance' },
             ].map(f => (
               <div key={f.name}>
-                <label style={labelStyle}>{f.label}</label>
-                <input type={f.type} name={f.name} value={form[f.name]} onChange={handleChange}
-                  placeholder={f.placeholder || ''} onBlur={handleBlur}
-                  style={inputStyle} />
+                <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>{f.label}</label>
+                <input type={f.type} name={f.name} value={form[f.name] || ''} onChange={handleChange} placeholder={f.placeholder || ''}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }} />
               </div>
             ))}
             <div>
-              <label style={labelStyle}>Platform *</label>
-              <select name="platform" value={form.platform} onChange={handleChange}
-                style={inputStyle}>
-                <option value="shopee">Shopee Ads</option>
-                <option value="tiktok">TikTok Ads</option>
-                <option value="meta">Meta Ads</option>
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>Status</label>
-              <select name="status" value={form.status} onChange={handleChange}
-                style={inputStyle}>
+              <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Status</label>
+              <select name="status" value={form.status || 'aktif'} onChange={handleChange}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }}>
                 <option value="aktif">Aktif</option>
                 <option value="pause">Pause</option>
                 <option value="selesai">Selesai</option>
@@ -319,233 +349,122 @@ export default function AdsPage() {
             </div>
           </div>
 
-          <div style={{ ...funnelHeaderStyle, margin: '16px 0 8px' }}>Awareness</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
-            {[
-              { label: 'Impresi', name: 'impresi' },
-              { label: 'Jangkauan', name: 'jangkauan' },
-              { label: 'Frekuensi (auto)', name: 'frekuensi', readOnly: true },
-            ].map(f => (
-              <div key={f.name}>
-                <label style={labelStyle}>{f.label}</label>
-                <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
-                  readOnly={f.readOnly}
-                  style={{ ...inputStyle, ...(f.readOnly ? inputReadOnlyStyle : {}) }} />
+          {/* Metrik per platform */}
+          <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            3. Metrik {PLATFORM_CONFIG[formPlatform].label}
+          </p>
+          {PLATFORM_CONFIG[formPlatform].fields.map(section => (
+            <div key={section.section} style={{ marginBottom: 16 }}>
+              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em', background: '#F3F4F6', padding: '4px 10px', borderRadius: 4, display: 'inline-block' }}>{section.section}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+                {section.fields.map(f => (
+                  <div key={f.name}>
+                    <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>{f.label}</label>
+                    <input type="number" name={f.name} value={form[f.name] || ''} onChange={handleChange} onBlur={handleBlur}
+                      readOnly={f.auto} placeholder={f.auto ? 'otomatis' : '0'}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: f.auto ? '#6B7280' : '#111', background: f.auto ? '#F3F4F6' : '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
 
-          <div style={{ ...funnelHeaderStyle, margin: '8px 0' }}>Interest & consideration</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
-            {[
-              { label: 'Klik', name: 'klik' },
-              { label: 'CTR % (auto)', name: 'ctr', readOnly: true },
-              { label: 'Belanja iklan (Rp)', name: 'belanja_iklan' },
-              { label: 'CPC (auto)', name: 'cpc', readOnly: true },
-            ].map(f => (
-              <div key={f.name}>
-                <label style={labelStyle}>{f.label}</label>
-                <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
-                  readOnly={f.readOnly}
-                  style={{ ...inputStyle, ...(f.readOnly ? inputReadOnlyStyle : {}) }} />
-              </div>
-            ))}
-          </div>
-
-          <div style={{ ...funnelHeaderStyle, margin: '8px 0' }}>Intent</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
-            {[
-              { label: 'Tambah keranjang', name: 'tambah_keranjang' },
-              { label: 'Checkout', name: 'checkout' },
-            ].map(f => (
-              <div key={f.name}>
-                <label style={labelStyle}>{f.label}</label>
-                <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
-                  style={inputStyle} />
-              </div>
-            ))}
-          </div>
-
-          <div style={{ ...funnelHeaderStyle, margin: '8px 0' }}>Konversi</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
-            {[
-              { label: 'Konversi / pesanan', name: 'konversi' },
-              { label: 'Pendapatan (Rp)', name: 'pendapatan' },
-              { label: 'ROAS (auto)', name: 'roas', readOnly: true },
-              { label: 'CPA (auto)', name: 'cpa', readOnly: true },
-            ].map(f => (
-              <div key={f.name}>
-                <label style={labelStyle}>{f.label}</label>
-                <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
-                  readOnly={f.readOnly}
-                  style={{ ...inputStyle, ...(f.readOnly ? inputReadOnlyStyle : {}) }} />
-              </div>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM); setEditId(null) }}
-              style={btnCancelStyle}>Batal</button>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+            <button onClick={() => { setShowForm(false); setForm(buildEmpty(formPlatform)); setEditId(null) }}
+              style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151' }}>Batal</button>
             <button onClick={handleSubmit} disabled={saving}
-              style={btnSaveStyle}>
+              style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: '#16A34A', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
               {saving ? 'Menyimpan...' : editId ? 'Perbarui data' : 'Simpan data'}
             </button>
           </div>
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+      {/* ── HEADER ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>Ads reporting — full funnel</p>
-          <p style={{ margin: 0, fontSize: 13, color: '#666' }}>Input harian per kampanye</p>
+          <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111' }}>Ads Reporting</p>
+          <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Full funnel per platform · {bulan}</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input type="month" value={bulan} onChange={e => setBulan(e.target.value)}
-            style={{ ...inputStyle, width: 'auto' }} />
-          <button onClick={() => { setShowForm(true); setForm(EMPTY_FORM); setEditId(null) }}
-            style={{ padding: '7px 16px', borderRadius: 6, background: '#111', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13 }}>
+            style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }} />
+          <button onClick={() => { setShowForm(true); setFormPlatform(activeTab); setForm(buildEmpty(activeTab)); setEditId(null) }}
+            style={{ padding: '8px 18px', borderRadius: 8, background: '#16A34A', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
             + Input data
           </button>
         </div>
       </div>
 
+      {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {['all', 'shopee', 'tiktok', 'meta'].map(t => (
-          <button key={t} onClick={() => setActiveTab(t)}
-            style={{
-              padding: '7px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer',
-              border: '0.5px solid #ccc',
-              background: activeTab === t ? '#111' : 'transparent',
-              color: activeTab === t ? '#fff' : '#555',
-            }}>
-            {t === 'all' ? 'Semua platform' : PLATFORM_LABEL[t]}
+        {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
+          <button key={key} onClick={() => setActiveTab(key)}
+            style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
+            {pc.label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <p style={{ color: '#888', fontSize: 14 }}>Memuat data...</p>
+        <p style={{ color: '#9CA3AF', fontSize: 14 }}>Memuat data...</p>
       ) : (
         <>
-          <div style={{ ...funnelHeaderStyle, marginBottom: 8 }}>Awareness</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 12 }}>
-            {[
-              { label: 'Total impresi', value: fmt(sumField(filtered, 'impresi')) },
-              { label: 'Total jangkauan', value: fmt(sumField(filtered, 'jangkauan')) },
-              { label: 'Frekuensi rata-rata', value: avgFrekuensi(filtered) + 'x' },
-            ].map(m => (
-              <div key={m.label} style={metricCardStyle}>
-                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
-                <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
+          {/* ── SUMMARY CARDS ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: 20 }}>
+            {(summaryCards[activeTab] || []).map(m => (
+              <div key={m.label} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#6B7280', fontWeight: 500 }}>{m.label}</p>
+                <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111' }}>{m.value}</p>
               </div>
             ))}
           </div>
 
-          <div style={{ borderTop: '0.5px dashed #e0e0e0', margin: '10px 0' }} />
-          <div style={{ ...funnelHeaderStyle, marginBottom: 8 }}>Interest & consideration</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 12 }}>
-            {[
-              { label: 'Total klik', value: fmt(sumField(filtered, 'klik')) },
-              { label: 'CTR rata-rata', value: avgCtr(filtered) + '%' },
-              { label: 'CPC rata-rata', value: fmtRp(avgCpc(filtered)) },
-              { label: 'Total belanja iklan', value: fmtRp(sumField(filtered, 'belanja_iklan')) },
-            ].map(m => (
-              <div key={m.label} style={metricCardStyle}>
-                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
-                <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
+          {/* ── TABEL DATA ── */}
+          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>
+                Detail kampanye — <span style={{ color: cfg.color.text }}>{cfg.label}</span>
+              </p>
+              <span style={{ fontSize: 12, color: '#9CA3AF' }}>{rows.length} kampanye</span>
+            </div>
+            {rows.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF' }}>
+                <p style={{ fontSize: 14, margin: '0 0 8px' }}>Belum ada data untuk bulan ini</p>
+                <p style={{ fontSize: 12, margin: 0 }}>Klik "Input data" untuk menambahkan kampanye {cfg.label}</p>
               </div>
-            ))}
-          </div>
-
-          <div style={{ borderTop: '0.5px dashed #e0e0e0', margin: '10px 0' }} />
-          <div style={{ ...funnelHeaderStyle, marginBottom: 8 }}>Intent</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 12 }}>
-            {[
-              { label: 'Tambah keranjang', value: fmt(sumField(filtered, 'tambah_keranjang')) },
-              { label: 'Checkout', value: fmt(sumField(filtered, 'checkout')) },
-            ].map(m => (
-              <div key={m.label} style={metricCardStyle}>
-                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
-                <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ borderTop: '0.5px dashed #e0e0e0', margin: '10px 0' }} />
-          <div style={{ ...funnelHeaderStyle, marginBottom: 8 }}>Konversi</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 20 }}>
-            {[
-              { label: 'Total konversi', value: fmt(sumField(filtered, 'konversi')) },
-              { label: 'Total pendapatan', value: fmtRp(sumField(filtered, 'pendapatan')) },
-              { label: 'ROAS', value: avgRoas(filtered) + 'x' },
-              { label: 'CPA rata-rata', value: fmtRp(avgCpa(filtered)) },
-            ].map(m => (
-              <div key={m.label} style={metricCardStyle}>
-                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
-                <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ ...cardStyle, padding: 16 }}>
-            <p style={{ margin: '0 0 12px', fontWeight: 500, fontSize: 14 }}>
-              Detail kampanye {activeTab !== 'all' ? '— ' + PLATFORM_LABEL[activeTab] : '— semua platform'}
-            </p>
-            {filtered.length === 0 ? (
-              <p style={{ color: '#aaa', fontSize: 13 }}>Belum ada data. Klik "Input data" untuk menambahkan.</p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
-                      <th style={tableThStyle}>Tanggal</th>
-                      {activeTab === 'all' && <th style={{ ...tableThStyle, whiteSpace: 'normal' }}>Platform</th>}
-                      <th style={tableThStyle}>Kampanye</th>
-                      <th style={{ ...tableThStyle, whiteSpace: 'normal' }}>Status</th>
-                      <th style={{ ...tableThStyle, textAlign: 'right' }}>Impresi</th>
-                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>Klik</th>
-                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>CTR</th>
-                      <th style={{ ...tableThStyle, textAlign: 'right' }}>Krnjng</th>
-                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>Checkout</th>
-                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>Konversi</th>
-                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>Pendapatan</th>
-                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>ROAS</th>
-                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>CPA</th>
-                      <th style={{ ...tableThStyle, textAlign: 'right', whiteSpace: 'normal' }}>Aksi</th>
+                    <tr style={{ background: '#F9FAFB' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Tgl</th>
+                      {TABLE_COLS[activeTab].map(col => (
+                        <th key={col.key} style={{ textAlign: col.key === 'nama_kampanye' ? 'left' : 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>{col.label}</th>
+                      ))}
+                      <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, borderBottom: '1px solid #E5E7EB' }}>Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(row => {
-                      const pc = PLATFORM_COLOR[row.platform] || PLATFORM_COLOR.shopee
+                    {rows.map(row => {
                       const sb = statusBadge[row.status] || statusBadge.aktif
                       return (
-                        <tr key={row.id} style={{ borderBottom: '0.5px solid #f0f0f0' }}>
-                          <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>{row.tanggal}</td>
-                          {activeTab === 'all' && (
-                            <td style={{ padding: '6px 8px' }}>
-                              <span style={{ fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: pc.bg, color: pc.text }}>
-                                {PLATFORM_LABEL[row.platform]}
-                              </span>
+                        <tr key={row.id} style={{ borderBottom: '0.5px solid #F3F4F6' }}>
+                          <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', color: '#374151' }}>{row.tanggal}</td>
+                          {TABLE_COLS[activeTab].map(col => (
+                            <td key={col.key} style={{ padding: '7px 10px', textAlign: col.key === 'nama_kampanye' ? 'left' : 'right', whiteSpace: 'nowrap', color: '#111',
+                              fontWeight: col.key === 'roi' ? 600 : 400,
+                              color: col.key === 'roi' ? (Number(row[col.key]) >= 2 ? '#166534' : '#991B1B') : '#111' }}>
+                              {col.key === 'status'
+                                ? <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: sb.bg, color: sb.text, fontWeight: 500 }}>{sb.label}</span>
+                                : col.fmt(row[col.key])}
                             </td>
-                          )}
-                          <td style={{ padding: '6px 8px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.nama_kampanye}</td>
-                          <td style={{ padding: '6px 8px' }}>
-                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: sb.bg, color: sb.text }}>{sb.label}</span>
-                          </td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(row.impresi)}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(row.klik)}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtPct(row.ctr)}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(row.tambah_keranjang)}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(row.checkout)}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(row.konversi)}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtRp(row.pendapatan)}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 500, color: row.roas >= 4 ? '#3B6D11' : '#A32D2D' }}>{fmtX(row.roas)}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtRp(row.cpa)}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <button onClick={() => handleEdit(row)}
-                              style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: '0.5px solid #ccc', background: 'none', cursor: 'pointer', marginRight: 4 }}>Edit</button>
-                            <button onClick={() => handleDelete(row.id)}
-                              style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: '0.5px solid #ffcccc', background: 'none', color: '#c00', cursor: 'pointer' }}>Hapus</button>
+                          ))}
+                          <td style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <button onClick={() => handleEdit(row, activeTab)}
+                              style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', marginRight: 6, color: '#374151' }}>Edit</button>
+                            <button onClick={() => handleDelete(row.id, activeTab)}
+                              style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>Hapus</button>
                           </td>
                         </tr>
                       )
