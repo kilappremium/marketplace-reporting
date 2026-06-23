@@ -1,254 +1,487 @@
-"use client";
+'use client'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 
-import { useEffect, useMemo, useState } from "react";
-import TabelData from "@/components/TabelData";
-import { formatRupiah, formatRoas, formatTanggal } from "@/lib/format";
-import { supabase } from "@/lib/supabase";
+const PLATFORMS = ['shopee', 'tiktok', 'meta']
+const PLATFORM_LABEL = { shopee: 'Shopee Ads', tiktok: 'TikTok Ads', meta: 'Meta Ads' }
+const PLATFORM_COLOR = {
+  shopee: { bg: '#FFF0E6', text: '#993C1D', initial: 'S' },
+  tiktok: { bg: '#F0F0FF', text: '#3C3489', initial: 'T' },
+  meta:   { bg: '#E6F1FB', text: '#0C447C', initial: 'M' },
+}
 
-function toDateInputValue(date) {
-  return date.toISOString().slice(0, 10);
+const EMPTY_FORM = {
+  tanggal: new Date().toISOString().split('T')[0],
+  platform: 'shopee',
+  nama_kampanye: '',
+  tipe_kampanye: '',
+  status: 'aktif',
+  belanja_iklan: '',
+  impresi: '',
+  jangkauan: '',
+  frekuensi: '',
+  klik: '',
+  ctr: '',
+  cpc: '',
+  tambah_keranjang: '',
+  checkout: '',
+  konversi: '',
+  pendapatan: '',
+  roas: '',
+  cpa: '',
+}
+
+function fmt(n) {
+  if (!n && n !== 0) return '-'
+  return Number(n).toLocaleString('id-ID')
+}
+function fmtRp(n) {
+  if (!n && n !== 0) return '-'
+  return 'Rp ' + Number(n).toLocaleString('id-ID')
+}
+function fmtX(n) {
+  if (!n && n !== 0) return '-'
+  return Number(n).toFixed(2) + 'x'
+}
+function fmtPct(n) {
+  if (!n && n !== 0) return '-'
+  return Number(n).toFixed(2) + '%'
 }
 
 export default function AdsPage() {
-  const [rows, setRows] = useState([]);
-  const [platformOptions, setPlatformOptions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [platform, setPlatform] = useState("all");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [activeTab, setActiveTab] = useState('all')
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [saving, setSaving] = useState(false)
+  const [notif, setNotif] = useState('')
+  const [editId, setEditId] = useState(null)
+  const [bulan, setBulan] = useState(new Date().toISOString().slice(0, 7))
 
-  useEffect(() => {
-    async function fetchPlatforms() {
-      const { data } = await supabase.from("ads").select("platform");
-      if (!data) return;
+  useEffect(() => { fetchData() }, [bulan])
 
-      const unique = [...new Set(data.map((row) => row.platform).filter(Boolean))].sort();
-      setPlatformOptions(unique);
+  async function fetchData() {
+    setLoading(true)
+    const from = bulan + '-01'
+    const to = bulan + '-31'
+    const { data: rows } = await supabase
+      .from('ads')
+      .select('*')
+      .gte('tanggal', from)
+      .lte('tanggal', to)
+      .order('tanggal', { ascending: false })
+    setData(rows || [])
+    setLoading(false)
+  }
+
+  function handleChange(e) {
+    const { name, value } = e.target
+    setForm(f => ({ ...f, [name]: value }))
+  }
+
+  function autoHitung(f) {
+    const updated = { ...f }
+    if (f.impresi && f.klik)
+      updated.ctr = ((f.klik / f.impresi) * 100).toFixed(2)
+    if (f.belanja_iklan && f.klik)
+      updated.cpc = (f.belanja_iklan / f.klik).toFixed(0)
+    if (f.belanja_iklan && f.pendapatan)
+      updated.roas = (f.pendapatan / f.belanja_iklan).toFixed(2)
+    if (f.belanja_iklan && f.konversi)
+      updated.cpa = (f.belanja_iklan / f.konversi).toFixed(0)
+    if (f.jangkauan && f.impresi)
+      updated.frekuensi = (f.impresi / f.jangkauan).toFixed(2)
+    return updated
+  }
+
+  function handleBlur() {
+    setForm(f => autoHitung(f))
+  }
+
+  async function handleSubmit() {
+    if (!form.nama_kampanye || !form.tanggal || !form.platform) {
+      setNotif('error:Nama kampanye, tanggal, dan platform wajib diisi!')
+      return
     }
-
-    fetchPlatforms();
-  }, []);
-
-  useEffect(() => {
-    async function fetchAds() {
-      setLoading(true);
-      setError(null);
-
-      let query = supabase.from("ads").select("*").order("tanggal", { ascending: false });
-
-      if (platform !== "all") {
-        query = query.eq("platform", platform);
-      }
-
-      if (startDate) {
-        query = query.gte("tanggal", startDate);
-      }
-
-      if (endDate) {
-        query = query.lte("tanggal", `${endDate}T23:59:59`);
-      }
-
-      const { data, error: fetchError } = await query;
-
-      if (fetchError) {
-        setError(fetchError.message);
-        setRows([]);
-      } else {
-        setRows(data ?? []);
-      }
-
-      setLoading(false);
+    setSaving(true)
+    const payload = {
+      tanggal: form.tanggal,
+      platform: form.platform,
+      nama_kampanye: form.nama_kampanye,
+      tipe_kampanye: form.tipe_kampanye,
+      status: form.status,
+      belanja_iklan: Number(form.belanja_iklan) || 0,
+      impresi: Number(form.impresi) || 0,
+      jangkauan: Number(form.jangkauan) || 0,
+      frekuensi: Number(form.frekuensi) || 0,
+      klik: Number(form.klik) || 0,
+      ctr: Number(form.ctr) || 0,
+      cpc: Number(form.cpc) || 0,
+      tambah_keranjang: Number(form.tambah_keranjang) || 0,
+      checkout: Number(form.checkout) || 0,
+      konversi: Number(form.konversi) || 0,
+      pendapatan: Number(form.pendapatan) || 0,
+      roas: Number(form.roas) || 0,
+      cpa: Number(form.cpa) || 0,
     }
+    if (editId) {
+      await supabase.from('ads').update(payload).eq('id', editId)
+      setNotif('ok:Data berhasil diperbarui!')
+      setEditId(null)
+    } else {
+      await supabase.from('ads').insert([payload])
+      setNotif('ok:Data berhasil disimpan!')
+    }
+    setSaving(false)
+    setForm(EMPTY_FORM)
+    setShowForm(false)
+    fetchData()
+    setTimeout(() => setNotif(''), 3000)
+  }
 
-    fetchAds();
-  }, [platform, startDate, endDate]);
+  function handleEdit(row) {
+    setForm({ ...row, tanggal: row.tanggal })
+    setEditId(row.id)
+    setShowForm(true)
+    window.scrollTo(0, 0)
+  }
 
-  const summary = useMemo(() => {
-    return rows.reduce(
-      (acc, row) => {
-        acc.biaya += Number(row.biaya_iklan) || 0;
-        acc.klik += Number(row.klik) || 0;
-        acc.konversi += Number(row.konversi) || 0;
-        acc.pendapatan += Number(row.pendapatan) || 0;
-        return acc;
-      },
-      { biaya: 0, klik: 0, konversi: 0, pendapatan: 0 },
-    );
-  }, [rows]);
+  async function handleDelete(id) {
+    if (!confirm('Yakin hapus data ini?')) return
+    await supabase.from('ads').delete().eq('id', id)
+    fetchData()
+  }
 
-  const columns = [
-    {
-      key: "tanggal",
-      label: "Tanggal",
-      nowrap: true,
-      render: (row) => formatTanggal(row.tanggal),
-    },
-    {
-      key: "platform",
-      label: "Platform",
-      render: (row) => (
-        <span className="inline-flex rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
-          {row.platform || "-"}
-        </span>
-      ),
-    },
-    {
-      key: "nama_kampanye",
-      label: "Nama Kampanye",
-      render: (row) => row.nama_kampanye || "-",
-      className: "font-medium text-zinc-900",
-    },
-    {
-      key: "biaya_iklan",
-      label: "Biaya Iklan",
-      align: "right",
-      render: (row) => formatRupiah(row.biaya_iklan),
-    },
-    {
-      key: "klik",
-      label: "Klik",
-      align: "right",
-      render: (row) => Number(row.klik || 0).toLocaleString("id-ID"),
-    },
-    {
-      key: "konversi",
-      label: "Konversi",
-      align: "right",
-      render: (row) => Number(row.konversi || 0).toLocaleString("id-ID"),
-    },
-    {
-      key: "roas",
-      label: "ROAS",
-      align: "right",
-      render: (row) => formatRoas(row.pendapatan, row.biaya_iklan),
-      className: "font-semibold text-amber-700",
-    },
-  ];
+  const filtered = activeTab === 'all' ? data : data.filter(d => d.platform === activeTab)
 
-  function resetFilters() {
-    setPlatform("all");
-    setStartDate("");
-    setEndDate("");
+  function sumField(arr, field) {
+    return arr.reduce((a, b) => a + (Number(b[field]) || 0), 0)
+  }
+  function avgRoas(arr) {
+    const totalBelanja = sumField(arr, 'belanja_iklan')
+    const totalPendapatan = sumField(arr, 'pendapatan')
+    return totalBelanja ? (totalPendapatan / totalBelanja).toFixed(2) : 0
+  }
+  function avgCpa(arr) {
+    const totalBelanja = sumField(arr, 'belanja_iklan')
+    const totalKonversi = sumField(arr, 'konversi')
+    return totalKonversi ? (totalBelanja / totalKonversi).toFixed(0) : 0
+  }
+  function avgCtr(arr) {
+    const totalImpresi = sumField(arr, 'impresi')
+    const totalKlik = sumField(arr, 'klik')
+    return totalImpresi ? ((totalKlik / totalImpresi) * 100).toFixed(2) : 0
+  }
+  function avgFrekuensi(arr) {
+    const totalImpresi = sumField(arr, 'impresi')
+    const totalJangkauan = sumField(arr, 'jangkauan')
+    return totalJangkauan ? (totalImpresi / totalJangkauan).toFixed(2) : 0
+  }
+  function avgCpc(arr) {
+    const totalBelanja = sumField(arr, 'belanja_iklan')
+    const totalKlik = sumField(arr, 'klik')
+    return totalKlik ? (totalBelanja / totalKlik).toFixed(0) : 0
+  }
+
+  const statusBadge = {
+    aktif:   { bg: '#EAF3DE', text: '#27500A', label: 'Aktif' },
+    pause:   { bg: '#FAEEDA', text: '#633806', label: 'Pause' },
+    selesai: { bg: '#FCEBEB', text: '#791F1F', label: 'Selesai' },
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Data Iklan</h1>
-        <p className="mt-2 text-zinc-600">
-          Pantau performa kampanye iklan berdasarkan platform dan rentang tanggal.
-        </p>
-      </header>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px', fontFamily: 'sans-serif' }}>
 
-      <section className="mb-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6">
-        <div className="grid gap-4 md:grid-cols-4">
-          <div>
-            <label htmlFor="platform" className="mb-1.5 block text-sm font-medium text-zinc-700">
-              Platform
-            </label>
-            <select
-              id="platform"
-              value={platform}
-              onChange={(event) => setPlatform(event.target.value)}
-              className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
-            >
-              <option value="all">Semua Platform</option>
-              {platformOptions.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="startDate" className="mb-1.5 block text-sm font-medium text-zinc-700">
-              Tanggal Mulai
-            </label>
-            <input
-              id="startDate"
-              type="date"
-              value={startDate}
-              max={endDate || undefined}
-              onChange={(event) => setStartDate(event.target.value)}
-              className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="endDate" className="mb-1.5 block text-sm font-medium text-zinc-700">
-              Tanggal Akhir
-            </label>
-            <input
-              id="endDate"
-              type="date"
-              value={endDate}
-              min={startDate || undefined}
-              max={toDateInputValue(new Date())}
-              onChange={(event) => setEndDate(event.target.value)}
-              className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
-            />
-          </div>
-
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="w-full rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
-            >
-              Reset Filter
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-zinc-500">Total Biaya Iklan</p>
-          <p className="mt-2 text-2xl font-bold text-violet-600">
-            {loading ? "..." : formatRupiah(summary.biaya)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-zinc-500">Total Klik</p>
-          <p className="mt-2 text-2xl font-bold text-blue-600">
-            {loading ? "..." : summary.klik.toLocaleString("id-ID")}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-zinc-500">Total Konversi</p>
-          <p className="mt-2 text-2xl font-bold text-emerald-600">
-            {loading ? "..." : summary.konversi.toLocaleString("id-ID")}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-zinc-500">ROAS Keseluruhan</p>
-          <p className="mt-2 text-2xl font-bold text-amber-600">
-            {loading ? "..." : formatRoas(summary.pendapatan, summary.biaya)}
-          </p>
-        </div>
-      </section>
-
-      {error && (
-        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          Gagal memuat data: {error}
+      {notif && (
+        <div style={{
+          padding: '12px 16px', borderRadius: 8, marginBottom: 16, fontSize: 14,
+          background: notif.startsWith('ok:') ? '#EAF3DE' : '#FCEBEB',
+          color: notif.startsWith('ok:') ? '#27500A' : '#791F1F',
+        }}>
+          {notif.replace(/^(ok|error):/, '')}
         </div>
       )}
 
-      <TabelData
-        title="Daftar Kampanye Iklan"
-        subtitle={
-          loading
-            ? "Memuat data..."
-            : `${rows.length.toLocaleString("id-ID")} baris data ditampilkan.`
-        }
-        columns={columns}
-        rows={rows}
-        loading={loading}
-        emptyMessage="Tidak ada data iklan untuk filter yang dipilih."
-        getRowKey={(row) => row.id ?? `${row.tanggal}-${row.platform}-${row.nama_kampanye}`}
-      />
+      {showForm && (
+        <div style={{ background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <p style={{ margin: 0, fontWeight: 500, fontSize: 15 }}>{editId ? 'Edit data kampanye' : 'Input data kampanye baru'}</p>
+            <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM); setEditId(null) }}
+              style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>×</button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            {[
+              { label: 'Tanggal *', name: 'tanggal', type: 'date' },
+              { label: 'Nama kampanye *', name: 'nama_kampanye', type: 'text' },
+              { label: 'Tipe kampanye', name: 'tipe_kampanye', type: 'text', placeholder: 'cth: Brand, Performance' },
+            ].map(f => (
+              <div key={f.name}>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <input type={f.type} name={f.name} value={form[f.name]} onChange={handleChange}
+                  placeholder={f.placeholder || ''} onBlur={handleBlur}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+            ))}
+            <div>
+              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Platform *</label>
+              <select name="platform" value={form.platform} onChange={handleChange}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13 }}>
+                <option value="shopee">Shopee Ads</option>
+                <option value="tiktok">TikTok Ads</option>
+                <option value="meta">Meta Ads</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Status</label>
+              <select name="status" value={form.status} onChange={handleChange}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13 }}>
+                <option value="aktif">Aktif</option>
+                <option value="pause">Pause</option>
+                <option value="selesai">Selesai</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ margin: '16px 0 8px', fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Awareness</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
+            {[
+              { label: 'Impresi', name: 'impresi' },
+              { label: 'Jangkauan', name: 'jangkauan' },
+              { label: 'Frekuensi (auto)', name: 'frekuensi', readOnly: true },
+            ].map(f => (
+              <div key={f.name}>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
+                  readOnly={f.readOnly}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13, boxSizing: 'border-box', background: f.readOnly ? '#f5f5f5' : '' }} />
+              </div>
+            ))}
+          </div>
+
+          <div style={{ margin: '8px 0', fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Interest & consideration</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
+            {[
+              { label: 'Klik', name: 'klik' },
+              { label: 'CTR % (auto)', name: 'ctr', readOnly: true },
+              { label: 'Belanja iklan (Rp)', name: 'belanja_iklan' },
+              { label: 'CPC (auto)', name: 'cpc', readOnly: true },
+            ].map(f => (
+              <div key={f.name}>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
+                  readOnly={f.readOnly}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13, boxSizing: 'border-box', background: f.readOnly ? '#f5f5f5' : '' }} />
+              </div>
+            ))}
+          </div>
+
+          <div style={{ margin: '8px 0', fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Intent</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
+            {[
+              { label: 'Tambah keranjang', name: 'tambah_keranjang' },
+              { label: 'Checkout', name: 'checkout' },
+            ].map(f => (
+              <div key={f.name}>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+            ))}
+          </div>
+
+          <div style={{ margin: '8px 0', fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Konversi</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
+            {[
+              { label: 'Konversi / pesanan', name: 'konversi' },
+              { label: 'Pendapatan (Rp)', name: 'pendapatan' },
+              { label: 'ROAS (auto)', name: 'roas', readOnly: true },
+              { label: 'CPA (auto)', name: 'cpa', readOnly: true },
+            ].map(f => (
+              <div key={f.name}>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <input type="number" name={f.name} value={form[f.name]} onChange={handleChange} onBlur={handleBlur}
+                  readOnly={f.readOnly}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13, boxSizing: 'border-box', background: f.readOnly ? '#f5f5f5' : '' }} />
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM); setEditId(null) }}
+              style={{ padding: '8px 20px', borderRadius: 6, border: '0.5px solid #ccc', background: 'none', cursor: 'pointer', fontSize: 13 }}>Batal</button>
+            <button onClick={handleSubmit} disabled={saving}
+              style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#111', color: '#fff', cursor: 'pointer', fontSize: 13 }}>
+              {saving ? 'Menyimpan...' : editId ? 'Perbarui data' : 'Simpan data'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>Ads reporting — full funnel</p>
+          <p style={{ margin: 0, fontSize: 13, color: '#666' }}>Input harian per kampanye</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input type="month" value={bulan} onChange={e => setBulan(e.target.value)}
+            style={{ padding: '6px 10px', borderRadius: 6, border: '0.5px solid #ccc', fontSize: 13 }} />
+          <button onClick={() => { setShowForm(true); setForm(EMPTY_FORM); setEditId(null) }}
+            style={{ padding: '7px 16px', borderRadius: 6, background: '#111', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13 }}>
+            + Input data
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {['all', 'shopee', 'tiktok', 'meta'].map(t => (
+          <button key={t} onClick={() => setActiveTab(t)}
+            style={{
+              padding: '7px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer',
+              border: '0.5px solid #ccc',
+              background: activeTab === t ? '#111' : 'transparent',
+              color: activeTab === t ? '#fff' : '#555',
+            }}>
+            {t === 'all' ? 'Semua platform' : PLATFORM_LABEL[t]}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p style={{ color: '#888', fontSize: 14 }}>Memuat data...</p>
+      ) : (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Awareness</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 12 }}>
+            {[
+              { label: 'Total impresi', value: fmt(sumField(filtered, 'impresi')) },
+              { label: 'Total jangkauan', value: fmt(sumField(filtered, 'jangkauan')) },
+              { label: 'Frekuensi rata-rata', value: avgFrekuensi(filtered) + 'x' },
+            ].map(m => (
+              <div key={m.label} style={{ background: '#f7f7f5', borderRadius: 8, padding: '12px 14px' }}>
+                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
+                <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ borderTop: '0.5px dashed #e0e0e0', margin: '10px 0' }} />
+          <div style={{ fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Interest & consideration</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 12 }}>
+            {[
+              { label: 'Total klik', value: fmt(sumField(filtered, 'klik')) },
+              { label: 'CTR rata-rata', value: avgCtr(filtered) + '%' },
+              { label: 'CPC rata-rata', value: fmtRp(avgCpc(filtered)) },
+              { label: 'Total belanja iklan', value: fmtRp(sumField(filtered, 'belanja_iklan')) },
+            ].map(m => (
+              <div key={m.label} style={{ background: '#f7f7f5', borderRadius: 8, padding: '12px 14px' }}>
+                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
+                <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ borderTop: '0.5px dashed #e0e0e0', margin: '10px 0' }} />
+          <div style={{ fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Intent</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 12 }}>
+            {[
+              { label: 'Tambah keranjang', value: fmt(sumField(filtered, 'tambah_keranjang')) },
+              { label: 'Checkout', value: fmt(sumField(filtered, 'checkout')) },
+            ].map(m => (
+              <div key={m.label} style={{ background: '#f7f7f5', borderRadius: 8, padding: '12px 14px' }}>
+                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
+                <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ borderTop: '0.5px dashed #e0e0e0', margin: '10px 0' }} />
+          <div style={{ fontSize: 11, fontWeight: 500, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Konversi</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 20 }}>
+            {[
+              { label: 'Total konversi', value: fmt(sumField(filtered, 'konversi')) },
+              { label: 'Total pendapatan', value: fmtRp(sumField(filtered, 'pendapatan')) },
+              { label: 'ROAS', value: avgRoas(filtered) + 'x' },
+              { label: 'CPA rata-rata', value: fmtRp(avgCpa(filtered)) },
+            ].map(m => (
+              <div key={m.label} style={{ background: '#f7f7f5', borderRadius: 8, padding: '12px 14px' }}>
+                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#888' }}>{m.label}</p>
+                <p style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{m.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background: '#fff', border: '0.5px solid #e8e8e8', borderRadius: 12, padding: 16 }}>
+            <p style={{ margin: '0 0 12px', fontWeight: 500, fontSize: 14 }}>
+              Detail kampanye {activeTab !== 'all' ? '— ' + PLATFORM_LABEL[activeTab] : '— semua platform'}
+            </p>
+            {filtered.length === 0 ? (
+              <p style={{ color: '#aaa', fontSize: 13 }}>Belum ada data. Klik "Input data" untuk menambahkan.</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '0.5px solid #e8e8e8' }}>
+                      <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 400, whiteSpace: 'nowrap' }}>Tanggal</th>
+                      {activeTab === 'all' && <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Platform</th>}
+                      <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 400, whiteSpace: 'nowrap' }}>Kampanye</th>
+                      <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Status</th>
+                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400, whiteSpace: 'nowrap' }}>Impresi</th>
+                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Klik</th>
+                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>CTR</th>
+                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400, whiteSpace: 'nowrap' }}>Krnjng</th>
+                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Checkout</th>
+                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Konversi</th>
+                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Pendapatan</th>
+                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>ROAS</th>
+                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>CPA</th>
+                      <th style={{ textAlign: 'right', padding: '6px 8px', color: '#888', fontWeight: 400 }}>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(row => {
+                      const pc = PLATFORM_COLOR[row.platform] || PLATFORM_COLOR.shopee
+                      const sb = statusBadge[row.status] || statusBadge.aktif
+                      return (
+                        <tr key={row.id} style={{ borderBottom: '0.5px solid #f0f0f0' }}>
+                          <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>{row.tanggal}</td>
+                          {activeTab === 'all' && (
+                            <td style={{ padding: '6px 8px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: pc.bg, color: pc.text }}>
+                                {PLATFORM_LABEL[row.platform]}
+                              </span>
+                            </td>
+                          )}
+                          <td style={{ padding: '6px 8px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.nama_kampanye}</td>
+                          <td style={{ padding: '6px 8px' }}>
+                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: sb.bg, color: sb.text }}>{sb.label}</span>
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(row.impresi)}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(row.klik)}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtPct(row.ctr)}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(row.tambah_keranjang)}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(row.checkout)}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(row.konversi)}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtRp(row.pendapatan)}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 500, color: row.roas >= 4 ? '#3B6D11' : '#A32D2D' }}>{fmtX(row.roas)}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtRp(row.cpa)}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <button onClick={() => handleEdit(row)}
+                              style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: '0.5px solid #ccc', background: 'none', cursor: 'pointer', marginRight: 4 }}>Edit</button>
+                            <button onClick={() => handleDelete(row.id)}
+                              style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: '0.5px solid #ffcccc', background: 'none', color: '#c00', cursor: 'pointer' }}>Hapus</button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
-  );
+  )
 }
