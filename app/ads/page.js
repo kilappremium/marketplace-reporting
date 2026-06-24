@@ -189,6 +189,7 @@ export default function AdsPage() {
   const [notif, setNotif] = useState('')
   const [editId, setEditId] = useState(null)
   const [bulan, setBulan] = useState(new Date().toISOString().slice(0, 7))
+  const [filterJenis, setFilterJenis] = useState('semua')
 
   useEffect(() => { fetchAll() }, [bulan])
 
@@ -421,7 +422,7 @@ export default function AdsPage() {
       {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
-          <button key={key} onClick={() => setActiveTab(key)}
+          <button key={key} onClick={() => { setActiveTab(key); setFilterJenis('semua') }}
             style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
             {pc.label}
           </button>
@@ -434,7 +435,11 @@ export default function AdsPage() {
         <>
           {/* ── GRAFIK TREN HARIAN ── */}
           {(() => {
-            const grafik = [...rows]
+            const rowsFiltered = activeTab === 'shopee' && filterJenis !== 'semua'
+              ? rows.filter(r => r.nama_kampanye === filterJenis)
+              : rows
+
+            const grafik = [...rowsFiltered]
               .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
               .map(row => ({
                 tgl: row.tanggal.slice(8),
@@ -457,7 +462,26 @@ export default function AdsPage() {
                     <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>Tren harian — {cfg.label}</p>
                     <p style={{ margin: 0, fontSize: 12, color: '#6B7280' }}>Omzet vs Biaya Iklan per hari</p>
                   </div>
-                  <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    {activeTab === 'shopee' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: '#6B7280' }}>Filter:</span>
+                        {['semua', 'Iklan Toko', 'Iklan Produk'].map(j => (
+                          <button key={j} onClick={() => setFilterJenis(j)}
+                            style={{
+                              padding: '5px 12px', borderRadius: 6, fontSize: 12,
+                              cursor: 'pointer', border: '1px solid',
+                              borderColor: filterJenis === j ? '#16A34A' : '#E5E7EB',
+                              background: filterJenis === j ? '#DCFCE7' : '#fff',
+                              color: filterJenis === j ? '#166534' : '#6B7280',
+                              fontWeight: filterJenis === j ? 500 : 400
+                            }}>
+                            {j === 'semua' ? 'Semua' : j}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span style={{ width: 20, height: 2, background: '#16A34A', display: 'inline-block', borderRadius: 2 }}></span>
                       <span style={{ color: '#6B7280' }}>Omzet</span>
@@ -466,6 +490,7 @@ export default function AdsPage() {
                       <span style={{ width: 20, height: 2, background: '#DC2626', display: 'inline-block', borderRadius: 2 }}></span>
                       <span style={{ color: '#6B7280' }}>Biaya Iklan</span>
                     </span>
+                    </div>
                   </div>
                 </div>
                 <ResponsiveContainer width="100%" height={280}>
