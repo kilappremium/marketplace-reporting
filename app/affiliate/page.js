@@ -522,34 +522,38 @@ export default function AffiliatePage() {
                   name="tanggal"
                   value={form.tanggal_week || ''}
                   onChange={(e) => {
-                    const weekVal = e.target.value // format: 2026-W24
-                    if (weekVal) {
-                      const [yearStr, weekStr] = weekVal.split('-W')
-                      const year = parseInt(yearStr)
-                      const week = parseInt(weekStr)
+                    const weekVal = e.target.value
+                    if (!weekVal) return
 
-                      // Hitung tanggal Senin minggu ke-N (ISO week)
-                      // Gunakan metode yang tidak terpengaruh timezone
-                      const jan4 = new Date(year, 0, 4) // 4 Jan selalu di week 1
-                      const jan4Day = jan4.getDay() || 7 // 1=Sen, 7=Min
-                      const mondayW1 = new Date(year, 0, 4 - jan4Day + 1)
+                    const [yearStr, weekStr] = weekVal.split('-W')
+                    const year = parseInt(yearStr)
+                    const week = parseInt(weekStr)
 
-                      // Tambah (week-1) * 7 hari
-                      const targetMonday = new Date(mondayW1)
-                      targetMonday.setDate(mondayW1.getDate() + (week - 1) * 7)
+                    // ISO 8601: W01 adalah minggu yang mengandung Kamis pertama
+                    // Senin W01 = 4 Jan dikurangi harinya + 1
+                    const simple = new Date(year, 0, 1 + (week - 1) * 7)
+                    const dow = simple.getDay() // 0=Min, 1=Sen
+                    const monday = new Date(simple)
 
-                      // Format manual YYYY-MM-DD tanpa konversi timezone
-                      const y = targetMonday.getFullYear()
-                      const m = String(targetMonday.getMonth() + 1).padStart(2, '0')
-                      const d = String(targetMonday.getDate()).padStart(2, '0')
-                      const dateStr = `${y}-${m}-${d}`
-
-                      setForm(f => ({
-                        ...f,
-                        tanggal: dateStr,
-                        tanggal_week: weekVal
-                      }))
+                    if (dow === 0) {
+                      // Minggu → maju 1 hari ke Senin
+                      monday.setDate(simple.getDate() + 1)
+                    } else if (dow !== 1) {
+                      // Bukan Senin → mundur ke Senin
+                      monday.setDate(simple.getDate() - (dow - 1))
                     }
+
+                    // Format YYYY-MM-DD manual (hindari timezone)
+                    const y = monday.getFullYear()
+                    const m = String(monday.getMonth() + 1).padStart(2, '0')
+                    const d = String(monday.getDate()).padStart(2, '0')
+                    const dateStr = `${y}-${m}-${d}`
+
+                    setForm(f => ({
+                      ...f,
+                      tanggal: dateStr,
+                      tanggal_week: weekVal
+                    }))
                   }}
                   style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }}
                 />
