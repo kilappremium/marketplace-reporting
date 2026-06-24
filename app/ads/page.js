@@ -1,6 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer
+} from 'recharts'
 
 // ─── Format helpers ───────────────────────────────────────
 const fmt    = n => (n == null || n === '') ? '-' : Number(n).toLocaleString('id-ID')
@@ -412,6 +416,89 @@ export default function AdsPage() {
         <p style={{ color: '#9CA3AF', fontSize: 14 }}>Memuat data...</p>
       ) : (
         <>
+          {/* ── GRAFIK TREN HARIAN ── */}
+          {(() => {
+            const grafik = [...rows]
+              .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+              .map(row => ({
+                tgl: row.tanggal.slice(8),
+                omzet: Number(row.omzet) || 0,
+                biaya: Number(row.biaya_iklan) || 0,
+              }))
+
+            if (grafik.length === 0) return null
+
+            const fmtRpAxis = (v) => {
+              if (v >= 1000000) return 'Rp ' + (v/1000000).toFixed(1) + 'jt'
+              if (v >= 1000) return 'Rp ' + (v/1000).toFixed(0) + 'rb'
+              return 'Rp ' + v
+            }
+
+            return (
+              <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>Tren harian — {cfg.label}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: '#6B7280' }}>Omzet vs Biaya Iklan per hari</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 20, height: 2, background: '#16A34A', display: 'inline-block', borderRadius: 2 }}></span>
+                      <span style={{ color: '#6B7280' }}>Omzet</span>
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 20, height: 2, background: '#DC2626', display: 'inline-block', borderRadius: 2 }}></span>
+                      <span style={{ color: '#6B7280' }}>Biaya Iklan</span>
+                    </span>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={grafik} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                    <XAxis
+                      dataKey="tgl"
+                      tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                      tickLine={false}
+                      axisLine={{ stroke: '#E5E7EB' }}
+                      label={{ value: 'Tanggal', position: 'insideBottom', offset: -2, fontSize: 11, fill: '#9CA3AF' }}
+                    />
+                    <YAxis
+                      tickFormatter={fmtRpAxis}
+                      tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={70}
+                    />
+                    <Tooltip
+                      formatter={(value, name) => [
+                        'Rp ' + Number(value).toLocaleString('id-ID'),
+                        name === 'omzet' ? 'Omzet' : 'Biaya Iklan'
+                      ]}
+                      labelFormatter={(label) => 'Tanggal: ' + label}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E5E7EB', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="omzet"
+                      stroke="#16A34A"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: '#16A34A', strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="biaya"
+                      stroke="#DC2626"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: '#DC2626', strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )
+          })()}
+
           {/* ── SUMMARY CARDS ── */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: 20 }}>
             {(summaryCards[activeTab] || []).map(m => (
