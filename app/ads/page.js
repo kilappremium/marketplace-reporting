@@ -190,32 +190,21 @@ export default function AdsPage() {
 
   async function fetchAll() {
     setLoading(true)
-    
+
     const [r1, r2, r3] = await Promise.all([
-      supabase
-        .from('ads_shopee')
-        .select('*')
-        .filter('tanggal', 'gte', bulan + '-01')
-        .filter('tanggal', 'lte', bulan + '-31')
-        .order('tanggal', { ascending: false }),
-      supabase
-        .from('ads_tiktok')
-        .select('*')
-        .filter('tanggal', 'gte', bulan + '-01')
-        .filter('tanggal', 'lte', bulan + '-31')
-        .order('tanggal', { ascending: false }),
-      supabase
-        .from('ads_meta')
-        .select('*')
-        .filter('tanggal', 'gte', bulan + '-01')
-        .filter('tanggal', 'lte', bulan + '-31')
-        .order('tanggal', { ascending: false }),
+      supabase.from('ads_shopee').select('*').order('tanggal', { ascending: false }),
+      supabase.from('ads_tiktok').select('*').order('tanggal', { ascending: false }),
+      supabase.from('ads_meta').select('*').order('tanggal', { ascending: false }),
     ])
 
+    const filterBulan = (arr) => (arr || []).filter(row => {
+      return row.tanggal && row.tanggal.startsWith(bulan)
+    })
+
     setData({
-      shopee: r1.data || [],
-      tiktok: r2.data || [],
-      meta:   r3.data || [],
+      shopee: filterBulan(r1.data),
+      tiktok: filterBulan(r2.data),
+      meta:   filterBulan(r3.data),
     })
     setLoading(false)
   }
