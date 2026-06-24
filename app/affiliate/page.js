@@ -399,8 +399,13 @@ export default function AffiliatePage() {
     if (activeTab === 'weekly' && filterMinggu !== 'semua') {
       return all.filter(r => {
         if (!r.tanggal) return false
-        // Bandingkan tanggal Senin minggu tersebut
-        return r.tanggal === filterMinggu
+        const rDate = new Date(r.tanggal)
+        const fDate = new Date(filterMinggu)
+        // Bandingkan tahun, bulan, hari secara terpisah
+        // untuk hindari masalah timezone
+        return rDate.getFullYear() === fDate.getFullYear() &&
+               rDate.getMonth() === fDate.getMonth() &&
+               rDate.getDate() === fDate.getDate()
       })
     }
     return all
@@ -464,30 +469,40 @@ export default function AffiliatePage() {
   const summaryCards = activeTab === 'paid' ? summaryPaid : summaryCommon
 
   // Grafik tren GMV
-  const grafik = activeTab === 'weekly' ? (() => {
-    // Ambil semua data weekly (bukan hanya rows yang difilter)
-    const allWeekly = [...(data.weekly || [])]
-      .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+  const grafik = (() => {
+    if (activeTab !== 'weekly') {
+      // Untuk monthly dan paid: pakai rows yang sudah difilter
+      return [...rows]
+        .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+        .map(r => ({
+          tgl: r.tanggal.slice(8),
+          gmv: Number(r.gmv) || 0,
+          cost: Number(r.cost) || 0,
+        }))
+    }
 
-    return allWeekly.map(r => {
-      const d = new Date(r.tanggal)
-      const startOfYear = new Date(d.getFullYear(), 0, 1)
-      const weekNum = Math.ceil(
-        ((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7
-      )
-      return {
-        tgl: `W${weekNum}`,
-        gmv: Number(r.gmv) || 0,
-        cost: Number(r.cost) || 0,
-      }
-    })
-  })() : [...rows]
-    .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
-    .map(r => ({
-      tgl: r.tanggal.slice(8) || r.tanggal.slice(5),
-      gmv: Number(r.gmv) || 0,
-      cost: Number(r.cost) || 0,
-    }))
+    // Untuk weekly:
+    // Jika ada filter minggu aktif → tampilkan hanya minggu itu
+    // Jika semua minggu → tampilkan semua
+    const source = filterMinggu !== 'semua'
+      ? (data.weekly || []).filter(r => r.tanggal === filterMinggu)
+      : (data.weekly || [])
+
+    return [...source]
+      .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+      .map(r => {
+        const d = new Date(r.tanggal)
+        const startOfYear = new Date(d.getFullYear(), 0, 1)
+        const weekNum = Math.ceil(
+          ((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7
+        )
+        return {
+          tgl: `W${weekNum}`,
+          gmv: Number(r.gmv) || 0,
+          cost: Number(r.cost) || 0,
+        }
+      })
+  })()
 
   const fmtRpAxis = v => {
     if (v >= 1000000) return 'Rp ' + (v / 1000000).toFixed(1) + 'jt'
