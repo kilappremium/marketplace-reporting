@@ -13,7 +13,16 @@ const MENU = [
   {
     group: 'Marketing',
     items: [
-      { label: 'Performance Marketing', href: '/ads', icon: '◈' },
+      { 
+        label: 'Performance Marketing', 
+        href: '/ads', 
+        icon: '◈',
+        submenu: [
+          { label: 'Shopee Ads', key: 'shopee' },
+          { label: 'TikTok GMV Max', key: 'tiktok' },
+          { label: 'Meta Ads', key: 'meta' },
+        ]
+      },
       { label: 'Affiliate', href: '/affiliate', icon: '◉' },
       { label: 'Livestream', href: '/livestream', icon: '▶' },
     ]
@@ -26,8 +35,25 @@ const MENU = [
   },
 ]
 
-export default function Sidebar({ collapsed, setCollapsed }) {
+const PLATFORM_COLORS = {
+  shopee: { bg: '#FFF0E6', text: '#993C1D', dot: '#FF6B35' },
+  tiktok: { bg: '#F0F0FF', text: '#3C3489', dot: '#6C63FF' },
+  meta:   { bg: '#E6F1FB', text: '#0C447C', dot: '#1877F2' },
+}
+
+export default function Sidebar({ collapsed, setCollapsed, activePlatform, setActivePlatform }) {
   const pathname = usePathname()
+  const [openSubmenu, setOpenSubmenu] = useState(
+    pathname.startsWith('/ads') ? 'Performance Marketing' : null
+  )
+
+  function handleMenuClick(item) {
+    if (item.submenu) {
+      setOpenSubmenu(prev => 
+        prev === item.label ? null : item.label
+      )
+    }
+  }
 
   return (
     <aside style={{
@@ -87,51 +113,152 @@ export default function Sidebar({ collapsed, setCollapsed }) {
             {group.items.map(item => {
               const active = pathname === item.href ||
                 (item.href !== '/' && pathname.startsWith(item.href))
+              const isOpen = openSubmenu === item.label
+
               return (
-                <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: collapsed ? '10px 0' : '10px 20px',
-                    justifyContent: collapsed ? 'center' : 'flex-start',
-                    margin: '2px 8px',
-                    borderRadius: 8,
-                    background: active
-                      ? 'linear-gradient(135deg, #FF6B35, #FF8C00)'
-                      : 'transparent',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                    onMouseEnter={e => {
-                      if (!active) e.currentTarget.style.background = '#FFF3ED'
-                    }}
-                    onMouseLeave={e => {
-                      if (!active) e.currentTarget.style.background = 'transparent'
-                    }}>
-                    <span style={{
-                      fontSize: 16,
-                      color: active ? '#fff' : '#FF6B35',
-                      flexShrink: 0,
-                    }}>{item.icon}</span>
-                    {!collapsed && (
+                <div key={item.href}>
+                  {/* Menu utama */}
+                  {item.submenu ? (
+                    <div
+                      onClick={() => handleMenuClick(item)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: collapsed ? '10px 0' : '10px 20px',
+                        justifyContent: collapsed ? 'center' : 'flex-start',
+                        margin: '2px 8px',
+                        borderRadius: 8,
+                        background: active
+                          ? 'linear-gradient(135deg, #FF6B35, #FF8C00)'
+                          : isOpen ? '#FFF3ED' : 'transparent',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => {
+                        if (!active && !isOpen) e.currentTarget.style.background = '#FFF3ED'
+                      }}
+                      onMouseLeave={e => {
+                        if (!active && !isOpen) e.currentTarget.style.background = 'transparent'
+                        else if (isOpen && !active) e.currentTarget.style.background = '#FFF3ED'
+                      }}>
                       <span style={{
-                        fontSize: 13,
-                        fontWeight: active ? 600 : 400,
-                        color: active ? '#fff' : '#444',
-                        whiteSpace: 'nowrap',
-                      }}>{item.label}</span>
-                    )}
-                    {active && !collapsed && (
-                      <div style={{
-                        marginLeft: 'auto',
-                        width: 6, height: 6,
-                        borderRadius: '50%',
-                        background: 'rgba(255,255,255,0.7)',
-                      }} />
-                    )}
-                  </div>
-                </Link>
+                        fontSize: 16,
+                        color: active ? '#fff' : '#FF6B35',
+                        flexShrink: 0,
+                      }}>{item.icon}</span>
+                      {!collapsed && (
+                        <>
+                          <span style={{
+                            fontSize: 13,
+                            fontWeight: active || isOpen ? 600 : 400,
+                            color: active ? '#fff' : '#444',
+                            whiteSpace: 'nowrap',
+                            flex: 1,
+                          }}>{item.label}</span>
+                          <span style={{
+                            fontSize: 10,
+                            color: active ? '#fff' : '#FF6B35',
+                            transition: 'transform 0.2s',
+                            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                            display: 'inline-block',
+                          }}>▼</span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <Link href={item.href} style={{ textDecoration: 'none' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          padding: collapsed ? '10px 0' : '10px 20px',
+                          justifyContent: collapsed ? 'center' : 'flex-start',
+                          margin: '2px 8px',
+                          borderRadius: 8,
+                          background: active
+                            ? 'linear-gradient(135deg, #FF6B35, #FF8C00)'
+                            : 'transparent',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={e => {
+                          if (!active) e.currentTarget.style.background = '#FFF3ED'
+                        }}
+                        onMouseLeave={e => {
+                          if (!active) e.currentTarget.style.background = 'transparent'
+                        }}>
+                        <span style={{
+                          fontSize: 16,
+                          color: active ? '#fff' : '#FF6B35',
+                          flexShrink: 0,
+                        }}>{item.icon}</span>
+                        {!collapsed && (
+                          <span style={{
+                            fontSize: 13,
+                            fontWeight: active ? 600 : 400,
+                            color: active ? '#fff' : '#444',
+                            whiteSpace: 'nowrap',
+                          }}>{item.label}</span>
+                        )}
+                      </div>
+                    </Link>
+                  )}
+
+                  {/* Submenu Platform */}
+                  {item.submenu && isOpen && !collapsed && (
+                    <div style={{
+                      margin: '2px 8px 4px 8px',
+                      borderRadius: 8,
+                      background: '#FFF8F5',
+                      border: '1px solid #FFE0CC',
+                      overflow: 'hidden',
+                    }}>
+                      {item.submenu.map((sub, idx) => {
+                        const pc = PLATFORM_COLORS[sub.key]
+                        const isActive = activePlatform === sub.key && pathname.startsWith('/ads')
+                        return (
+                          <Link
+                            key={sub.key}
+                            href="/ads"
+                            style={{ textDecoration: 'none' }}
+                            onClick={() => setActivePlatform && setActivePlatform(sub.key)}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              padding: '9px 16px',
+                              cursor: 'pointer',
+                              background: isActive ? pc.bg : 'transparent',
+                              borderBottom: idx < item.submenu.length - 1 
+                                ? '1px solid #FFE0CC' : 'none',
+                              transition: 'background 0.15s',
+                            }}
+                              onMouseEnter={e => {
+                                if (!isActive) e.currentTarget.style.background = pc.bg
+                              }}
+                              onMouseLeave={e => {
+                                if (!isActive) e.currentTarget.style.background = 'transparent'
+                              }}>
+                              <div style={{
+                                width: 8, height: 8,
+                                borderRadius: '50%',
+                                background: isActive ? pc.dot : '#ccc',
+                                flexShrink: 0,
+                              }} />
+                              <span style={{
+                                fontSize: 12,
+                                color: isActive ? pc.text : '#666',
+                                fontWeight: isActive ? 600 : 400,
+                              }}>{sub.label}</span>
+                            </div>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>
