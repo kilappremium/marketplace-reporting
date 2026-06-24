@@ -184,19 +184,32 @@ export default function AffiliatePage() {
   const [editId, setEditId]           = useState(null)
   const [bulan, setBulan]             = useState(new Date().toISOString().slice(0, 7))
   const [prevGmv, setPrevGmv]         = useState(0)
+  const [filterMinggu, setFilterMinggu] = useState('semua')
 
   useEffect(() => { fetchAll() }, [bulan])
 
   async function fetchAll() {
     setLoading(true)
+    const today = new Date()
+    const eightWeeksAgo = new Date(today)
+    eightWeeksAgo.setDate(today.getDate() - 56)
+    const weeklyFrom = eightWeeksAgo.toISOString().split('T')[0]
+
     const [r1, r2, r3] = await Promise.all([
       supabase.from('affiliate_monthly').select('*').order('tanggal', { ascending: false }),
-      supabase.from('affiliate_weekly').select('*').order('tanggal', { ascending: false }),
+      supabase
+        .from('affiliate_weekly')
+        .select('*')
+        .gte('tanggal', weeklyFrom)
+        .order('tanggal', { ascending: false }),
       supabase.from('affiliate_paid').select('*').order('tanggal', { ascending: false }),
     ])
-    const filterBulan = arr => (arr || []).filter(r => r.tanggal && r.tanggal.startsWith(bulan))
+    const filterBulan = (arr, isWeekly = false) => {
+      if (isWeekly) return arr || []
+      return (arr || []).filter(r => r.tanggal && r.tanggal.startsWith(bulan))
+    }
     const monthly = filterBulan(r1.data)
-    const weekly  = filterBulan(r2.data)
+    const weekly  = filterBulan(r2.data, true)
     setData({ monthly, weekly, paid: filterBulan(r3.data) })
 
     // Ambil GMV minggu lalu untuk Growth Revenue
@@ -266,7 +279,13 @@ export default function AffiliatePage() {
     fetchAll()
   }
 
-  const rows = data[activeTab] || []
+  const rows = (() => {
+    const all = data[activeTab] || []
+    if (activeTab === 'weekly' && filterMinggu !== 'semua') {
+      return all.filter(r => r.tanggal === filterMinggu)
+    }
+    return all
+  })()
   const cfg  = PLATFORM_CONFIG[activeTab]
   const fields = activeTab === 'paid' ? PAID_FIELDS : COMMON_FIELDS
 
@@ -427,7 +446,7 @@ export default function AffiliatePage() {
       {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
-          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)) }}
+          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua') }}
             style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
             {pc.label}
           </button>
@@ -438,6 +457,39 @@ export default function AffiliatePage() {
         <p style={{ color: '#9CA3AF', fontSize: 14 }}>Memuat data...</p>
       ) : (
         <>
+          {activeTab === 'weekly' && (() => {
+            const mingguList = [...new Set(
+              (data.weekly || []).map(r => {
+                if (!r.tanggal) return null
+                const d = new Date(r.tanggal)
+                const startOfYear = new Date(d.getFullYear(), 0, 1)
+                const weekNum = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7)
+                const endDate = new Date(d)
+                endDate.setDate(d.getDate() + 6)
+                return JSON.stringify({
+                  key: r.tanggal,
+                  label: `W${weekNum} · ${d.getDate()}/${d.getMonth()+1} - ${endDate.getDate()}/${endDate.getMonth()+1}/${d.getFullYear()}`
+                })
+              }).filter(Boolean)
+            )].map(s => JSON.parse(s))
+
+            return (
+              <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 500 }}>Filter minggu:</span>
+                <button onClick={() => setFilterMinggu('semua')}
+                  style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: '1px solid', borderColor: filterMinggu === 'semua' ? '#3C3489' : '#E5E7EB', background: filterMinggu === 'semua' ? '#F0F0FF' : '#fff', color: filterMinggu === 'semua' ? '#3C3489' : '#6B7280', fontWeight: filterMinggu === 'semua' ? 500 : 400 }}>
+                  Semua minggu
+                </button>
+                {mingguList.map(m => (
+                  <button key={m.key} onClick={() => setFilterMinggu(m.key)}
+                    style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: '1px solid', borderColor: filterMinggu === m.key ? '#3C3489' : '#E5E7EB', background: filterMinggu === m.key ? '#F0F0FF' : '#fff', color: filterMinggu === m.key ? '#3C3489' : '#6B7280', fontWeight: filterMinggu === m.key ? 500 : 400 }}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
+
           {/* ── GRAFIK TREN ── */}
           {grafik.length > 0 && (
             <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
