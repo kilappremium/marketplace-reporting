@@ -1,36 +1,32 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import AppShell from "@/components/AppShell";
-import "./globals.css";
+'use client'
+import { useState } from 'react'
+import { Geist } from 'next/font/google'
+import './globals.css'
+import Sidebar from '../components/Sidebar'
+import Topbar from '../components/Topbar'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const geist = Geist({ subsets: ['latin'] })
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+export default function RootLayout({ children }) {
+  const [collapsed, setCollapsed] = useState(false)
 
-export const metadata: Metadata = {
-  title: "Marketplace Reporting",
-  description: "Dashboard laporan penjualan, iklan, affiliate, dan livestream",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
   return (
-    <html
-      lang="id"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="flex min-h-full flex-col bg-zinc-50 text-zinc-900">
-        <AppShell>{children}</AppShell>
+    <html lang="id">
+      <body className={geist.className} style={{ margin: 0, background: '#FFF8F5' }}>
+        <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
+        <div style={{
+          marginLeft: collapsed ? 64 : 240,
+          minHeight: '100vh',
+          transition: 'margin-left 0.2s ease',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <Topbar />
+          <main style={{ flex: 1, padding: '24px' }}>
+            {children}
+          </main>
+        </div>
       </body>
     </html>
-  );
+  )
 }
