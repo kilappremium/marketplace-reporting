@@ -335,8 +335,6 @@ export default function AdsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
             {[
               { label: 'Tanggal *', name: 'tanggal', type: 'date' },
-              { label: 'Nama kampanye *', name: 'nama_kampanye', type: 'text', placeholder: 'cth: Flash Sale Juni' },
-              { label: 'Tipe kampanye', name: 'tipe_kampanye', type: 'text', placeholder: 'cth: Brand, Performance' },
             ].map(f => (
               <div key={f.name}>
                 <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>{f.label}</label>
@@ -344,6 +342,24 @@ export default function AdsPage() {
                   style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }} />
               </div>
             ))}
+            {formPlatform === 'shopee' ? (
+              <div>
+                <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Jenis Kampanye *</label>
+                <select name="nama_kampanye" value={form.nama_kampanye || ''} onChange={handleChange}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }}>
+                  <option value="">-- Pilih jenis kampanye --</option>
+                  <option value="Iklan Toko">Iklan Toko</option>
+                  <option value="Iklan Produk">Iklan Produk</option>
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Jenis Kampanye *</label>
+                <input type="text" name="nama_kampanye" value={form.nama_kampanye || ''} onChange={handleChange}
+                  placeholder="cth: Flash Sale Juni"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+              </div>
+            )}
             <div>
               <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Status</label>
               <select name="status" value={form.status || 'aktif'} onChange={handleChange}
