@@ -155,7 +155,11 @@ function autoCalc(form, tab, prevGmv) {
 
   if (gmv && cost)        f.take_rate_gmv   = (cost / gmv * 100).toFixed(2)
   if (gmv && cost)        f.rate_cost_gmv   = (cost / gmv * 100).toFixed(2)
-  if (totalAff && jumlahMakingSales) f.making_sales_rate = (jumlahMakingSales / totalAff * 100).toFixed(2)
+  if (jumlahMakingSales && totalAff) {
+    f.making_sales_rate = (jumlahMakingSales / totalAff * 100).toFixed(2)
+  } else {
+    f.making_sales_rate = 0
+  }
   if (totalItems && totalAff)  f.conv_rate        = (totalItems / totalAff * 100).toFixed(2)
   if (gmv && totalItems)  f.average_revenue  = (gmv / totalItems).toFixed(0)
   if (cost && totalItems) f.acquisition_cost_per_product = (cost / totalItems).toFixed(0)
@@ -373,7 +377,11 @@ export default function AffiliatePage() {
     { label: 'Total GMV', value: fmtRp(sum(rows, 'gmv')) },
     { label: 'Growth Revenue', value: fmtPct(avg(rows, 'growth_revenue')) },
     { label: 'Total Affiliate', value: fmt(sum(rows, 'total_affiliate')) },
-    { label: 'Making Sales Rate', value: fmtPct(avg(rows, 'making_sales_rate')) },
+    { label: 'Making Sales Rate', value: (() => {
+      const totalJml = sum(rows, 'jumlah_making_sales')
+      const totalAff = sum(rows, 'total_affiliate')
+      return totalAff > 0 ? fmtPct(totalJml / totalAff * 100) : '-'
+    })() },
     { label: 'Acquisition Cost Per Product', value: fmtRp(avg(rows, 'acquisition_cost_per_product')) },
     { label: 'Jumlah Video', value: fmt(sum(rows, 'jumlah_video')) },
     { label: 'Cost', value: fmtRp(sum(rows, 'cost')) },
@@ -770,6 +778,7 @@ export default function AffiliatePage() {
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Growth</th>}
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Total Aff</th>}
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Jml Making Sales</th>}
+                      {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Making Sales Rate</th>}
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items TikTok</th>}
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items Shopee</th>}
                       {activeTab === 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items Sold</th>}
@@ -800,6 +809,11 @@ export default function AffiliatePage() {
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: Number(row.growth_revenue) >= 0 ? '#166534' : '#991B1B', fontWeight: 500 }}>{fmtPct(row.growth_revenue)}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.total_affiliate)}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.jumlah_making_sales)}</td>}
+                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{(() => {
+                          const jml = Number(row.jumlah_making_sales) || 0
+                          const aff = Number(row.total_affiliate) || 0
+                          return aff > 0 ? fmtPct(jml / aff * 100) : '-'
+                        })()}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold_tiktok)}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold_shopee)}</td>}
                         {activeTab === 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold)}</td>}
