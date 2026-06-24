@@ -137,6 +137,7 @@ function buildEmpty(tab) {
   const base = {
     tanggal: new Date().toISOString().split('T')[0],
     nama_partner: '', platform: 'tiktok', periode: '',
+    tanggal_week: '',
   }
   ALL_FIELD_NAMES[tab].forEach(f => { if (!(f in base)) base[f] = '' })
   return base
@@ -329,16 +330,47 @@ export default function AffiliatePage() {
 
           {/* Info dasar */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 12, marginBottom: 20 }}>
-            <div>
-              <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Tanggal *</label>
-              <input
-                type={activeTab === 'monthly' ? 'month' : 'date'}
-                name="tanggal"
-                value={activeTab === 'monthly' ? (form.tanggal || '').slice(0, 7) : (form.tanggal || '')}
-                onChange={handleChange}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }}
-              />
-            </div>
+            {activeTab === 'weekly' ? (
+              <div>
+                <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Minggu *</label>
+                <input
+                  type="week"
+                  name="tanggal"
+                  value={form.tanggal_week || ''}
+                  onChange={(e) => {
+                    const weekVal = e.target.value
+                    if (weekVal) {
+                      const [year, week] = weekVal.split('-W')
+                      const jan4 = new Date(year, 0, 4)
+                      const dayOfWeek = jan4.getDay() || 7
+                      const mondayW1 = new Date(jan4)
+                      mondayW1.setDate(jan4.getDate() - dayOfWeek + 1)
+                      const monday = new Date(mondayW1)
+                      monday.setDate(mondayW1.getDate() + (Number(week) - 1) * 7)
+                      const dateStr = monday.toISOString().split('T')[0]
+                      setForm(f => ({ ...f, tanggal: dateStr, tanggal_week: weekVal }))
+                    }
+                  }}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }}
+                />
+                {form.tanggal && (
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#6B7280' }}>
+                    Senin: {form.tanggal}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div>
+                <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Tanggal *</label>
+                <input
+                  type={activeTab === 'monthly' ? 'month' : 'date'}
+                  name="tanggal"
+                  value={activeTab === 'monthly' ? (form.tanggal || '').slice(0, 7) : (form.tanggal || '')}
+                  onChange={handleChange}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Field per section */}
@@ -491,7 +523,17 @@ export default function AffiliatePage() {
                   <tbody>
                     {rows.map(row => (
                       <tr key={row.id} style={{ borderBottom: '0.5px solid #F3F4F6' }}>
-                        <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', color: '#374151' }}>{row.tanggal}</td>
+                        <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', color: '#374151' }}>
+                          {activeTab === 'weekly' ? (() => {
+                            if (!row.tanggal) return '-'
+                            const d = new Date(row.tanggal)
+                            const startOfYear = new Date(d.getFullYear(), 0, 1)
+                            const weekNum = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7)
+                            const endDate = new Date(d)
+                            endDate.setDate(d.getDate() + 6)
+                            return `W${weekNum} · ${d.getDate()}/${d.getMonth()+1} - ${endDate.getDate()}/${endDate.getMonth()+1}`
+                          })() : row.tanggal}
+                        </td>
                         {activeTab === 'paid' && <td style={{ padding: '7px 10px', color: '#374151', fontWeight: 500 }}>{row.nama_partner}</td>}
                         {activeTab === 'paid' && <td style={{ padding: '7px 10px', color: '#374151' }}>{row.platform}</td>}
                         <td style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#111', fontWeight: 500 }}>{fmtRp(row.gmv)}</td>
