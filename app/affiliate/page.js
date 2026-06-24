@@ -210,10 +210,9 @@ export default function AffiliatePage() {
 
   async function fetchAll() {
     setLoading(true)
-    const today = new Date()
-    const eightWeeksAgo = new Date(today)
-    eightWeeksAgo.setDate(today.getDate() - 56)
-    const weeklyFrom = eightWeeksAgo.toISOString().split('T')[0]
+    // Ambil semua data weekly tahun ini
+    const tahunIni = new Date().getFullYear()
+    const weeklyFrom = tahunIni + '-01-01'
 
     const [r1, r2, r3] = await Promise.all([
       supabase.from('affiliate_monthly').select('*').order('tanggal', { ascending: false }),
@@ -264,7 +263,6 @@ export default function AffiliatePage() {
     setPrevGmv(lastWeek.length ? Number(lastWeek[0]?.gmv) : 0)
 
     // Ambil semua data monthly tahun ini
-    const tahunIni = new Date().getFullYear().toString()
     const dataTahunIni = (r1.data || [])
       .filter(r => r.tanggal && r.tanggal.startsWith(tahunIni))
       .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
