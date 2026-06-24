@@ -204,6 +204,7 @@ export default function AffiliatePage() {
   const [biayaTambahanList, setBiayaTambahanList] = useState([
     { jenis: 'Biaya Campaign', nominal: '', keterangan: '' }
   ])
+  const [grafikTahunan, setGrafikTahunan] = useState([])
 
   useEffect(() => { fetchAll() }, [bulan])
 
@@ -223,6 +224,27 @@ export default function AffiliatePage() {
         .order('tanggal', { ascending: false }),
       supabase.from('affiliate_paid').select('*').order('tanggal', { ascending: false }),
     ])
+
+    // Cek apakah ada data di bulan yang dipilih
+    const monthlyFiltered = (r1.data || []).filter(r =>
+      r.tanggal && r.tanggal.startsWith(bulan)
+    )
+
+    // Kalau tidak ada data di bulan sekarang,
+    // otomatis pindah ke bulan terbaru yang ada datanya
+    if (monthlyFiltered.length === 0 && r1.data && r1.data.length > 0) {
+      const latestDate = r1.data
+        .map(r => r.tanggal)
+        .filter(Boolean)
+        .sort()
+        .reverse()[0]
+      if (latestDate) {
+        const latestBulan = latestDate.slice(0, 7)
+        setBulan(latestBulan)
+        return // fetchAll akan dipanggil ulang otomatis karena bulan berubah
+      }
+    }
+
     const filterBulan = (arr, isWeekly = false) => {
       if (isWeekly) return arr || []
       return (arr || []).filter(r => r.tanggal && r.tanggal.startsWith(bulan))
@@ -240,6 +262,30 @@ export default function AffiliatePage() {
       return diff >= 7 && diff < 14
     })
     setPrevGmv(lastWeek.length ? Number(lastWeek[0]?.gmv) : 0)
+
+    // Ambil semua data monthly tahun ini
+    const tahunIni = new Date().getFullYear().toString()
+    const dataTahunIni = (r1.data || [])
+      .filter(r => r.tanggal && r.tanggal.startsWith(tahunIni))
+      .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+
+    // Buat data per bulan
+    const NAMA_BULAN = ['Jan','Feb','Mar','Apr','Mei','Jun',
+      'Jul','Agu','Sep','Okt','Nov','Des']
+
+    const bulanAktual = new Date().getMonth() // 0-11
+
+    const grafikData = Array.from({ length: bulanAktual + 1 }, (_, i) => {
+      const bulanStr = tahunIni + '-' + String(i + 1).padStart(2, '0')
+      const dataRow = dataTahunIni.find(r => r.tanggal && r.tanggal.startsWith(bulanStr))
+      return {
+        bulan: NAMA_BULAN[i],
+        gmv: dataRow ? Number(dataRow.gmv) || 0 : 0,
+        cost: dataRow ? Number(dataRow.cost) || 0 : 0,
+      }
+    })
+
+    setGrafikTahunan(grafikData)
     setLoading(false)
   }
 
@@ -638,7 +684,7 @@ export default function AffiliatePage() {
             <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
-                  <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>Tren GMV vs Cost — {cfg.label}</p>
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>{activeTab === 'monthly' ? 'Tren GMV vs Cost — Sepanjang ' + new Date().getFullYear() : 'Tren GMV vs Cost — ' + cfg.label}</p>
                   <p style={{ margin: 0, fontSize: 12, color: '#6B7280' }}>Perbandingan GMV dan biaya per periode</p>
                 </div>
                 <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
@@ -653,9 +699,9 @@ export default function AffiliatePage() {
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={grafik} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                <LineChart data={activeTab === 'monthly' ? grafikTahunan : grafik} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                  <XAxis dataKey="tgl" tick={{ fontSize: 11, fill: '#9CA3AF' }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} />
+                  <XAxis dataKey={activeTab === 'monthly' ? 'bulan' : 'tgl'} tick={{ fontSize: 11, fill: '#9CA3AF' }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} />
                   <YAxis tickFormatter={fmtRpAxis} tick={{ fontSize: 11, fill: '#9CA3AF' }} tickLine={false} axisLine={false} width={70} />
                   <Tooltip
                     formatter={(v, name) => ['Rp ' + Number(v).toLocaleString('id-ID'), name === 'gmv' ? 'GMV' : 'Cost']}
