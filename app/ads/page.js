@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { downloadTemplate, parseExcel } from '../../lib/excelTemplate'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer
@@ -190,6 +191,11 @@ export default function AdsPage() {
   const [editId, setEditId] = useState(null)
   const [bulan, setBulan] = useState(new Date().toISOString().slice(0, 7))
   const [filterJenis, setFilterJenis] = useState('semua')
+  const [showUpload, setShowUpload] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadPreview, setUploadPreview] = useState([])
+  const [uploadPlatform, setUploadPlatform] = useState('shopee')
+  const [uploadNotif, setUploadNotif] = useState('')
 
   useEffect(() => { fetchAll() }, [bulan])
 
@@ -267,6 +273,39 @@ export default function AdsPage() {
     fetchAll()
   }
 
+  async function handleFileUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadNotif('')
+    try {
+      const rows = await parseExcel(file, uploadPlatform)
+      if (rows.length === 0) {
+        setUploadNotif('error:Tidak ada data valid di file. Cek panduan di sheet Panduan.')
+        return
+      }
+      setUploadPreview(rows)
+      setUploadNotif('ok:' + rows.length + ' baris data siap diupload. Periksa preview lalu klik Simpan.')
+    } catch (err) {
+      setUploadNotif('error:' + err)
+    }
+  }
+
+  async function handleUploadSimpan() {
+    if (uploadPreview.length === 0) return
+    setUploading(true)
+    const tbl = PLATFORM_CONFIG[uploadPlatform].table
+    const { error } = await supabase.from(tbl).insert(uploadPreview)
+    if (error) {
+      setUploadNotif('error:Gagal menyimpan: ' + error.message)
+    } else {
+      setUploadNotif('ok:' + uploadPreview.length + ' data berhasil disimpan!')
+      setUploadPreview([])
+      fetchAll()
+      setTimeout(() => { setShowUpload(false); setUploadNotif('') }, 2000)
+    }
+    setUploading(false)
+  }
+
   const rows = data[activeTab] || []
   const cfg  = PLATFORM_CONFIG[activeTab]
 
@@ -311,6 +350,77 @@ export default function AdsPage() {
       )}
 
       {/* ── FORM INPUT ── */}
+      {showUpload && (
+        <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <p style={{ margin: 0, fontWeight: 600, fontSize: 16, color: '#111' }}>Upload data dari Excel</p>
+            <button onClick={() => { setShowUpload(false); setUploadPreview([]); setUploadNotif('') }}
+              style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888' }}>×</button>
+          </div>
+
+          <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+            <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>1. Pilih platform</p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+              {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
+                <button key={key} onClick={() => { setUploadPlatform(key); setUploadPreview([]); setUploadNotif('') }}
+                  style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: uploadPlatform === key ? pc.color.text : '#E5E7EB', background: uploadPlatform === key ? pc.color.bg : '#fff', color: uploadPlatform === key ? pc.color.text : '#6B7280' }}>
+                  {pc.label}
+                </button>
+              ))}
+            </div>
+
+            <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>2. Download template</p>
+            <button onClick={() => downloadTemplate(uploadPlatform)}
+              style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', color: '#374151', marginBottom: 16 }}>
+              ⬇ Download template {PLATFORM_CONFIG[uploadPlatform].label}
+            </button>
+
+            <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>3. Upload file yang sudah diisi</p>
+            <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload}
+              style={{ fontSize: 13, color: '#374151' }} />
+          </div>
+
+          {uploadNotif && (
+            <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: 13, background: uploadNotif.startsWith('ok:') ? '#DCFCE7' : '#FEE2E2', color: uploadNotif.startsWith('ok:') ? '#166534' : '#991B1B' }}>
+              {uploadNotif.replace(/^(ok|error):/, '')}
+            </div>
+          )}
+
+          {uploadPreview.length > 0 && (
+            <div>
+              <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#111' }}>Preview data ({uploadPreview.length} baris):</p>
+              <div style={{ overflowX: 'auto', maxHeight: 220, overflowY: 'auto', border: '1px solid #E5E7EB', borderRadius: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ background: '#F9FAFB', position: 'sticky', top: 0 }}>
+                      {Object.keys(uploadPreview[0]).map(k => (
+                        <th key={k} style={{ padding: '6px 10px', textAlign: 'left', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>{k}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uploadPreview.map((row, i) => (
+                      <tr key={i} style={{ borderBottom: '0.5px solid #F3F4F6' }}>
+                        {Object.values(row).map((val, j) => (
+                          <td key={j} style={{ padding: '5px 10px', whiteSpace: 'nowrap', color: '#111' }}>{val}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
+                <button onClick={() => { setUploadPreview([]); setUploadNotif('') }}
+                  style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151' }}>Batal</button>
+                <button onClick={handleUploadSimpan} disabled={uploading}
+                  style={{ padding: '8px 24px', borderRadius: 8, border: 'none', background: '#16A34A', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                  {uploading ? 'Menyimpan...' : 'Simpan ' + uploadPreview.length + ' data'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {showForm && (
         <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -412,6 +522,10 @@ export default function AdsPage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input type="month" value={bulan} onChange={e => setBulan(e.target.value)}
             style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }} />
+          <button onClick={() => { setShowUpload(true); setUploadPlatform(activeTab) }}
+            style={{ padding: '8px 18px', borderRadius: 8, background: '#fff', color: '#374151', border: '1px solid #D1D5DB', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+            ⬆ Upload Excel
+          </button>
           <button onClick={() => { setShowForm(true); setFormPlatform(activeTab); setForm(buildEmpty(activeTab)); setEditId(null) }}
             style={{ padding: '8px 18px', borderRadius: 8, background: '#16A34A', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
             + Input data
