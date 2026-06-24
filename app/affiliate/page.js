@@ -225,7 +225,7 @@ export default function AffiliatePage() {
       return
     }
     setSaving(true)
-    const payload = { tanggal: form.tanggal }
+    const payload = { tanggal: activeTab === 'monthly' ? form.tanggal.slice(0, 7) + '-01' : form.tanggal }
     ALL_FIELD_NAMES[activeTab].forEach(f => {
       payload[f] = (f === 'keterangan_biaya' || f === 'nama_partner' || f === 'platform' || f === 'periode')
         ? (form[f] || '')
@@ -331,17 +331,14 @@ export default function AffiliatePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 12, marginBottom: 20 }}>
             <div>
               <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Tanggal *</label>
-              <input type="date" name="tanggal" value={form.tanggal || ''} onChange={handleChange}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+              <input
+                type={activeTab === 'monthly' ? 'month' : 'date'}
+                name="tanggal"
+                value={activeTab === 'monthly' ? (form.tanggal || '').slice(0, 7) : (form.tanggal || '')}
+                onChange={handleChange}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }}
+              />
             </div>
-            {(activeTab === 'monthly' || activeTab === 'weekly') && (
-              <div>
-                <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Periode (opsional)</label>
-                <input type="text" name="periode" value={form.periode || ''} onChange={handleChange}
-                  placeholder={activeTab === 'weekly' ? 'cth: Minggu 1 Juni' : 'cth: Juni 2026'}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }} />
-              </div>
-            )}
           </div>
 
           {/* Field per section */}
@@ -474,7 +471,6 @@ export default function AffiliatePage() {
                   <thead>
                     <tr style={{ background: '#F9FAFB' }}>
                       <th style={{ textAlign: 'left', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Tanggal</th>
-                      {activeTab !== 'paid' && <th style={{ textAlign: 'left', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Periode</th>}
                       {activeTab === 'paid' && <th style={{ textAlign: 'left', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Partner</th>}
                       {activeTab === 'paid' && <th style={{ textAlign: 'left', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Platform</th>}
                       <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>GMV</th>
@@ -496,7 +492,6 @@ export default function AffiliatePage() {
                     {rows.map(row => (
                       <tr key={row.id} style={{ borderBottom: '0.5px solid #F3F4F6' }}>
                         <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', color: '#374151' }}>{row.tanggal}</td>
-                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', color: '#374151' }}>{row.periode || '-'}</td>}
                         {activeTab === 'paid' && <td style={{ padding: '7px 10px', color: '#374151', fontWeight: 500 }}>{row.nama_partner}</td>}
                         {activeTab === 'paid' && <td style={{ padding: '7px 10px', color: '#374151' }}>{row.platform}</td>}
                         <td style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#111', fontWeight: 500 }}>{fmtRp(row.gmv)}</td>
