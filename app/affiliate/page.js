@@ -49,7 +49,6 @@ const COMMON_FIELDS = [
       { label: 'Total Affiliate', name: 'total_affiliate', type: 'number' },
       { label: 'Jumlah Making Sales', name: 'jumlah_making_sales', type: 'number' },
       { label: 'Making Sales Rate % (auto)', name: 'making_sales_rate', auto: true },
-      { label: 'Making Sales Rate %', name: 'conv_rate', auto: true },
       { label: 'Acquisition Cost Per Product (auto)', name: 'acquisition_cost_per_product', auto: true },
     ]
   },
@@ -771,7 +770,6 @@ export default function AffiliatePage() {
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Growth</th>}
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Total Aff</th>}
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Jml Making Sales</th>}
-                      <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>{activeTab !== 'paid' ? 'Making Sales Rate' : 'Conv Rate'}</th>
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items TikTok</th>}
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items Shopee</th>}
                       {activeTab === 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items Sold</th>}
@@ -802,7 +800,6 @@ export default function AffiliatePage() {
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: Number(row.growth_revenue) >= 0 ? '#166534' : '#991B1B', fontWeight: 500 }}>{fmtPct(row.growth_revenue)}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.total_affiliate)}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.jumlah_making_sales)}</td>}
-                        <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmtPct(row.conv_rate)}</td>
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold_tiktok)}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold_shopee)}</td>}
                         {activeTab === 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold)}</td>}
