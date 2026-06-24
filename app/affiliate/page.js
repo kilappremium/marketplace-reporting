@@ -258,15 +258,30 @@ export default function AffiliatePage() {
     const weekly  = filterBulan(r2.data, true)
     setData({ monthly, weekly, paid: filterBulan(r3.data) })
 
-    // Ambil GMV minggu lalu untuk Growth Revenue
-    const thisWeekGmv = weekly.length ? Number(weekly[0]?.gmv) : 0
-    const lastWeek = (r2.data || []).filter(r => {
-      const d = new Date(r.tanggal)
-      const now = new Date()
-      const diff = (now - d) / (1000 * 60 * 60 * 24)
-      return diff >= 7 && diff < 14
-    })
-    setPrevGmv(lastWeek.length ? Number(lastWeek[0]?.gmv) : 0)
+    // Ambil GMV periode sebelumnya untuk Growth Revenue
+    const allWeekly = r2.data || []
+    const sorted = [...allWeekly].sort((a, b) =>
+      b.tanggal.localeCompare(a.tanggal))
+
+    // GMV minggu terbaru = index 0, minggu sebelumnya = index 1
+    if (activeTab === 'weekly') {
+      if (sorted.length >= 2) {
+        setPrevGmv(Number(sorted[1].gmv) || 0)
+      } else {
+        setPrevGmv(0)
+      }
+    } else if (activeTab === 'monthly') {
+      const allMonthly = r1.data || []
+      const sortedMonthly = [...allMonthly].sort((a, b) =>
+        b.tanggal.localeCompare(a.tanggal))
+      if (sortedMonthly.length >= 2) {
+        setPrevGmv(Number(sortedMonthly[1].gmv) || 0)
+      } else {
+        setPrevGmv(0)
+      }
+    } else {
+      setPrevGmv(0)
+    }
 
     // Ambil semua data monthly tahun ini
     const dataTahunIni = (r1.data || [])
@@ -323,7 +338,9 @@ export default function AffiliatePage() {
     if (payload.platform !== undefined) payload.platform = form.platform || 'tiktok'
     if (payload.periode !== undefined) payload.periode = form.periode || ''
     if (activeTab !== 'paid') {
-      payload.biaya_tambahan = JSON.stringify(biayaTambahanList)
+      payload.biaya_tambahan = JSON.stringify(
+        biayaTambahanList.filter(b => b.nominal || b.keterangan)
+      )
       payload.cost = hitungTotalCost(form, biayaTambahanList)
     }
 
@@ -349,6 +366,23 @@ export default function AffiliatePage() {
     setEditId(row.id)
     setShowForm(true)
     window.scrollTo(0, 0)
+
+    // Parse biaya tambahan dari JSON yang tersimpan
+    try {
+      const savedBiaya = row.biaya_tambahan
+      if (savedBiaya && typeof savedBiaya === 'string' && savedBiaya.startsWith('[')) {
+        const parsed = JSON.parse(savedBiaya)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setBiayaTambahanList(parsed)
+        } else {
+          setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }])
+        }
+      } else {
+        setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }])
+      }
+    } catch (e) {
+      setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }])
+    }
   }
 
   async function handleDelete(id) {
@@ -375,7 +409,20 @@ export default function AffiliatePage() {
   // Summary cards
   const summaryCommon = [
     { label: 'Total GMV', value: fmtRp(sum(rows, 'gmv')) },
-    { label: 'Growth Revenue', value: fmtPct(avg(rows, 'growth_revenue')) },
+    { label: 'Growth Revenue', value: (() => {
+      const sorted = [...rows].sort((a, b) =>
+        a.tanggal.localeCompare(b.tanggal))
+      if (sorted.length < 2) return '-'
+      const latest = Number(sorted[sorted.length - 1].gmv) || 0
+      const prev = Number(sorted[sorted.length - 2].gmv) || 0
+      if (!prev) return '-'
+      const growth = ((latest - prev) / prev * 100).toFixed(2)
+      return (
+        <span style={{ color: Number(growth) >= 0 ? '#166534' : '#991B1B', fontWeight: 600 }}>
+          {growth}%
+        </span>
+      )
+    })() },
     { label: 'Total Affiliate', value: fmt(sum(rows, 'total_affiliate')) },
     { label: 'Making Sales Rate', value: (() => {
       const totalJml = sum(rows, 'jumlah_making_sales')
@@ -390,7 +437,8 @@ export default function AffiliatePage() {
       value: (() => {
         const totalGmv = sum(rows, 'gmv')
         const totalCost = sum(rows, 'cost')
-        return totalCost > 0 ? fmtX(totalGmv / totalCost) : '-'
+        if (!totalCost) return '-'
+        return fmtX(totalGmv / totalCost)
       })()
     },
   ]
@@ -806,7 +854,21 @@ export default function AffiliatePage() {
                         <td style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#111', fontWeight: 500 }}>{fmtRp(row.gmv)}</td>
                         <td style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#374151' }}>{fmtRp(row.cost)}</td>
                         <td style={{ padding: '7px 10px', textAlign: 'right', color: Number(row.rate_cost_gmv) <= 20 ? '#166534' : '#991B1B', fontWeight: 500 }}>{fmtPct(row.rate_cost_gmv)}</td>
-                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: Number(row.growth_revenue) >= 0 ? '#166534' : '#991B1B', fontWeight: 500 }}>{fmtPct(row.growth_revenue)}</td>}
+                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right' }}>{(() => {
+                          const sorted = [...rows].sort((a, b) =>
+                            a.tanggal.localeCompare(b.tanggal))
+                          const idx = sorted.findIndex(r => r.id === row.id)
+                          if (idx <= 0) return '-'
+                          const prevGmvRow = Number(sorted[idx - 1].gmv) || 0
+                          const currGmv = Number(row.gmv) || 0
+                          if (!prevGmvRow) return '-'
+                          const growth = ((currGmv - prevGmvRow) / prevGmvRow * 100).toFixed(2)
+                          return (
+                            <span style={{ color: Number(growth) >= 0 ? '#166534' : '#991B1B', fontWeight: 500 }}>
+                              {growth}%
+                            </span>
+                          )
+                        })()}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.total_affiliate)}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.jumlah_making_sales)}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{(() => {
