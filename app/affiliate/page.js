@@ -195,6 +195,7 @@ export default function AffiliatePage() {
   const [bulan, setBulan]             = useState(new Date().toISOString().slice(0, 7))
   const [prevGmv, setPrevGmv]         = useState(0)
   const [filterMinggu, setFilterMinggu] = useState('semua')
+  const [filterBulanPaid, setFilterBulanPaid] = useState('')
   const [halamanTabel, setHalamanTabel] = useState(1)
   const BARIS_PER_HALAMAN = 5
   const [biayaTambahanList, setBiayaTambahanList] = useState([
@@ -209,6 +210,7 @@ export default function AffiliatePage() {
     // Ambil semua data weekly tahun ini
     const tahunIni = new Date().getFullYear()
     const weeklyFrom = tahunIni + '-01-01'
+    const paidFrom = tahunIni + '-01-01'
 
     const [r1, r2, r3] = await Promise.all([
       supabase.from('affiliate_monthly').select('*').order('tanggal', { ascending: false }),
@@ -217,7 +219,11 @@ export default function AffiliatePage() {
         .select('*')
         .gte('tanggal', weeklyFrom)
         .order('tanggal', { ascending: false }),
-      supabase.from('affiliate_paid').select('*').order('tanggal', { ascending: false }),
+      supabase
+        .from('affiliate_paid')
+        .select('*')
+        .gte('tanggal', paidFrom)
+        .order('tanggal', { ascending: false }),
     ])
 
     // Cek apakah ada data di bulan yang dipilih
@@ -240,13 +246,13 @@ export default function AffiliatePage() {
       }
     }
 
-    const filterBulan = (arr, isWeekly = false) => {
-      if (isWeekly) return arr || []
+    const filterBulan = (arr, skipFilter = false) => {
+      if (skipFilter) return arr || []
       return (arr || []).filter(r => r.tanggal && r.tanggal.startsWith(bulan))
     }
     const monthly = filterBulan(r1.data)
     const weekly  = filterBulan(r2.data, true)
-    setData({ monthly, weekly, paid: filterBulan(r3.data) })
+    setData({ monthly, weekly, paid: filterBulan(r3.data, true) })
 
     console.log('Total weekly data:', (r2.data || []).length)
     console.log('Weekly dates:', (r2.data || []).map(r => r.tanggal).sort())
@@ -397,6 +403,9 @@ export default function AffiliatePage() {
                rDate.getMonth() === fDate.getMonth() &&
                rDate.getDate() === fDate.getDate()
       })
+    }
+    if (activeTab === 'paid' && filterBulanPaid) {
+      return all.filter(r => r.tanggal && r.tanggal.startsWith(filterBulanPaid))
     }
     return all
   })()
@@ -858,6 +867,38 @@ export default function AffiliatePage() {
               </div>
             )
           })()}
+
+          {activeTab === 'paid' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10,
+              marginBottom: 16, background: '#fff', border: '1px solid #E5E7EB',
+              borderRadius: 10, padding: '12px 16px' }}>
+              <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 500 }}>
+                Filter bulan:
+              </span>
+              <select
+                value={filterBulanPaid}
+                onChange={(e) => setFilterBulanPaid(e.target.value)}
+                style={{ padding: '7px 12px', borderRadius: 8,
+                  border: '1px solid #D1D5DB', fontSize: 13,
+                  color: '#111', background: '#fff', minWidth: 160 }}>
+                <option value="">Semua bulan</option>
+                {[...new Set(
+                  (data.paid || []).map(r => r.tanggal && r.tanggal.slice(0, 7))
+                  .filter(Boolean)
+                )].sort().reverse().map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+              {filterBulanPaid && (
+                <button onClick={() => setFilterBulanPaid('')}
+                  style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12,
+                    border: '1px solid #E5E7EB', background: '#F9FAFB',
+                    color: '#6B7280', cursor: 'pointer' }}>
+                  Reset filter
+                </button>
+              )}
+            </div>
+          )}
 
           {/* ── GRAFIK TREN ── */}
           {grafik.length > 0 && (
