@@ -195,7 +195,8 @@ export default function AffiliatePage() {
   const [bulan, setBulan]             = useState(new Date().toISOString().slice(0, 7))
   const [prevGmv, setPrevGmv]         = useState(0)
   const [filterMinggu, setFilterMinggu] = useState('semua')
-  const [filterBulanPaid, setFilterBulanPaid] = useState('')
+  const [filterStartDate, setFilterStartDate] = useState('')
+  const [filterEndDate, setFilterEndDate] = useState('')
   const [halamanTabel, setHalamanTabel] = useState(1)
   const BARIS_PER_HALAMAN = 5
   const [biayaTambahanList, setBiayaTambahanList] = useState([
@@ -406,8 +407,23 @@ export default function AffiliatePage() {
                rDate.getDate() === fDate.getDate()
       })
     }
-    if (activeTab === 'paid' && filterBulanPaid) {
-      return all.filter(r => r.tanggal && r.tanggal.startsWith(filterBulanPaid))
+    if (activeTab === 'paid') {
+      if (filterStartDate && filterEndDate) {
+        return all.filter(r => {
+          if (!r.tanggal) return false
+          return r.tanggal >= filterStartDate &&
+                 r.tanggal <= filterEndDate
+        })
+      }
+      if (filterStartDate) {
+        return all.filter(r => r.tanggal &&
+          r.tanggal >= filterStartDate)
+      }
+      if (filterEndDate) {
+        return all.filter(r => r.tanggal &&
+          r.tanggal <= filterEndDate)
+      }
+      return all
     }
     return all
   })()
@@ -802,7 +818,7 @@ export default function AffiliatePage() {
       {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
-          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setFilterBulanPaid(''); setHalamanTabel(1); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
+          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setFilterStartDate(''); setFilterEndDate(''); setHalamanTabel(1); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
             style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
             {pc.label}
           </button>
@@ -871,33 +887,52 @@ export default function AffiliatePage() {
           })()}
 
           {activeTab === 'paid' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10,
-              marginBottom: 16, background: '#fff', border: '1px solid #E5E7EB',
-              borderRadius: 10, padding: '12px 16px' }}>
-              <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 500 }}>
-                Filter bulan:
+            <div style={{ display: 'flex', alignItems: 'center',
+              gap: 10, marginBottom: 16, background: '#fff',
+              border: '1px solid #E5E7EB', borderRadius: 10,
+              padding: '12px 16px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: '#6B7280',
+                fontWeight: 500, whiteSpace: 'nowrap' }}>
+                Filter periode:
               </span>
-              <select
-                value={filterBulanPaid}
-                onChange={(e) => setFilterBulanPaid(e.target.value)}
-                style={{ padding: '7px 12px', borderRadius: 8,
-                  border: '1px solid #D1D5DB', fontSize: 13,
-                  color: '#111', background: '#fff', minWidth: 160 }}>
-                <option value="">Semua bulan</option>
-                {[...new Set(
-                  (data.paid || []).map(r => r.tanggal && r.tanggal.slice(0, 7))
-                  .filter(Boolean)
-                )].sort().reverse().map(b => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-              {filterBulanPaid && (
-                <button onClick={() => setFilterBulanPaid('')}
-                  style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12,
-                    border: '1px solid #E5E7EB', background: '#F9FAFB',
-                    color: '#6B7280', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="date"
+                  value={filterStartDate}
+                  onChange={(e) => setFilterStartDate(e.target.value)}
+                  style={{ padding: '7px 12px', borderRadius: 8,
+                    border: '1px solid #D1D5DB', fontSize: 13,
+                    color: '#111', background: '#fff' }}
+                />
+                <span style={{ fontSize: 13, color: '#6B7280' }}>s/d</span>
+                <input
+                  type="date"
+                  value={filterEndDate}
+                  onChange={(e) => setFilterEndDate(e.target.value)}
+                  style={{ padding: '7px 12px', borderRadius: 8,
+                    border: '1px solid #D1D5DB', fontSize: 13,
+                    color: '#111', background: '#fff' }}
+                />
+              </div>
+              {(filterStartDate || filterEndDate) && (
+                <button
+                  onClick={() => {
+                    setFilterStartDate('')
+                    setFilterEndDate('')
+                  }}
+                  style={{ padding: '6px 12px', borderRadius: 8,
+                    fontSize: 12, border: '1px solid #E5E7EB',
+                    background: '#F9FAFB', color: '#6B7280',
+                    cursor: 'pointer', whiteSpace: 'nowrap' }}>
                   Reset filter
                 </button>
+              )}
+              {filterStartDate && filterEndDate && (
+                <span style={{ fontSize: 12, color: '#166534',
+                  background: '#DCFCE7', padding: '4px 10px',
+                  borderRadius: 20, whiteSpace: 'nowrap' }}>
+                  {filterStartDate} → {filterEndDate}
+                </span>
               )}
             </div>
           )}
