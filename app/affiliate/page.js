@@ -59,11 +59,13 @@ const COMMON_FIELDS = [
       { label: 'Average Product Price (Rp)', name: 'average_product_price', type: 'number' },
       { label: 'Jumlah Video', name: 'jumlah_video', type: 'number' },
       { label: 'Jumlah Live Shopping', name: 'jumlah_live_shopping', type: 'number' },
+      { label: 'Sample Produk TikTok (qty)', name: 'sample_tiktok', type: 'number' },
+      { label: 'Sample Produk Shopee (qty)', name: 'sample_shopee', type: 'number' },
     ]
   },
   { section: 'Biaya',
     fields: [
-      { label: 'Cost (Rp)', name: 'cost', type: 'number' },
+      { label: 'Cost (Rp) (auto)', name: 'cost', auto: true },
       { label: 'Rate Cost ke GMV % (auto)', name: 'rate_cost_gmv', auto: true },
       { label: 'Komisi Affiliate TikTok (Rp)', name: 'komisi_tiktok', type: 'number' },
       { label: 'Komisi Affiliate Shopee (Rp)', name: 'komisi_shopee', type: 'number' },
@@ -71,10 +73,6 @@ const COMMON_FIELDS = [
       { label: 'Fee COGS Produk Shopee (Rp)', name: 'fee_cogs_shopee', type: 'number' },
       { label: 'Ongkir (Rp)', name: 'ongkir', type: 'number' },
       { label: 'Fee Partnership (Rp)', name: 'fee_partnership', type: 'number' },
-      { label: 'Sample Produk TikTok (Rp)', name: 'sample_tiktok', type: 'number' },
-      { label: 'Sample Produk Shopee (Rp)', name: 'sample_shopee', type: 'number' },
-      { label: 'Biaya Tambahan (Rp)', name: 'biaya_tambahan', type: 'number' },
-      { label: 'Keterangan Biaya', name: 'keterangan_biaya', type: 'text' },
     ]
   },
 ]
@@ -122,12 +120,12 @@ const ALL_FIELD_NAMES = {
     'making_sales_rate','conv_rate','average_revenue','items_sold_tiktok','items_sold_shopee',
     'average_product_price','acquisition_cost_per_product','jumlah_video','jumlah_live_shopping',
     'cost','rate_cost_gmv','komisi_tiktok','komisi_shopee','fee_cogs_tiktok','fee_cogs_shopee',
-    'ongkir','fee_partnership','sample_tiktok','sample_shopee','biaya_tambahan','keterangan_biaya','periode'],
+    'ongkir','fee_partnership','sample_tiktok','sample_shopee','biaya_tambahan','periode'],
   weekly: ['gmv','take_rate_gmv','growth_revenue','affiliate_acquisition','total_affiliate',
     'making_sales_rate','conv_rate','average_revenue','items_sold_tiktok','items_sold_shopee',
     'average_product_price','acquisition_cost_per_product','jumlah_video','jumlah_live_shopping',
     'cost','rate_cost_gmv','komisi_tiktok','komisi_shopee','fee_cogs_tiktok','fee_cogs_shopee',
-    'ongkir','fee_partnership','sample_tiktok','sample_shopee','biaya_tambahan','keterangan_biaya','periode'],
+    'ongkir','fee_partnership','sample_tiktok','sample_shopee','biaya_tambahan','periode'],
   paid: ['nama_partner','platform','gmv','take_rate_gmv','conv_rate','items_sold','jumlah_konten',
     'reach','impresi','engagement_rate','cost','rate_cost_gmv','komisi_tiktok','komisi_shopee',
     'fee_partnership','sample_tiktok','sample_shopee','biaya_tambahan','keterangan_biaya'],
@@ -167,6 +165,24 @@ function autoCalc(form, tab, prevGmv) {
   return f
 }
 
+function hitungTotalCost(f, btList) {
+  const fields = ['komisi_tiktok','komisi_shopee',
+    'fee_cogs_tiktok','fee_cogs_shopee','ongkir','fee_partnership']
+  const sumFields = fields.reduce((a, key) => a + (Number(f[key]) || 0), 0)
+  const sumBiayaTambahan = (btList || []).reduce((a, b) => a + (Number(b.nominal) || 0), 0)
+  return sumFields + sumBiayaTambahan
+}
+
+const BIAYA_TAMBAHAN_OPTIONS = [
+  'Biaya Campaign',
+  'Biaya Training/Webinar',
+  'Biaya Kopdar',
+  'Reward Kopaskap',
+  'Pembelian Akun Kopaskap',
+  'Pembelian Merchandise',
+  'Entertain Affiliate',
+]
+
 const statusBadge = {
   aktif:   { bg: '#DCFCE7', text: '#166534', label: 'Aktif' },
   pause:   { bg: '#FEF9C3', text: '#854D0E', label: 'Pause' },
@@ -185,6 +201,9 @@ export default function AffiliatePage() {
   const [bulan, setBulan]             = useState(new Date().toISOString().slice(0, 7))
   const [prevGmv, setPrevGmv]         = useState(0)
   const [filterMinggu, setFilterMinggu] = useState('semua')
+  const [biayaTambahanList, setBiayaTambahanList] = useState([
+    { jenis: 'Biaya Campaign', nominal: '' }
+  ])
 
   useEffect(() => { fetchAll() }, [bulan])
 
@@ -226,7 +245,11 @@ export default function AffiliatePage() {
 
   function handleChange(e) {
     const { name, value } = e.target
-    setForm(f => autoCalc({ ...f, [name]: value }, activeTab, prevGmv))
+    setForm(f => {
+      const updated = autoCalc({ ...f, [name]: value }, activeTab, prevGmv)
+      updated.cost = hitungTotalCost(updated, biayaTambahanList)
+      return updated
+    })
   }
 
   async function handleSubmit() {
@@ -249,6 +272,10 @@ export default function AffiliatePage() {
     if (payload.nama_partner !== undefined) payload.nama_partner = form.nama_partner || ''
     if (payload.platform !== undefined) payload.platform = form.platform || 'tiktok'
     if (payload.periode !== undefined) payload.periode = form.periode || ''
+    if (activeTab !== 'paid') {
+      payload.biaya_tambahan = JSON.stringify(biayaTambahanList)
+      payload.cost = hitungTotalCost(form, biayaTambahanList)
+    }
 
     const tbl = PLATFORM_CONFIG[activeTab].table
     if (editId) {
@@ -261,6 +288,7 @@ export default function AffiliatePage() {
     }
     setSaving(false)
     setForm(buildEmpty(activeTab))
+    setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '' }])
     setShowForm(false)
     fetchAll()
     setTimeout(() => setNotif(''), 3000)
@@ -350,7 +378,7 @@ export default function AffiliatePage() {
         <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <p style={{ margin: 0, fontWeight: 600, fontSize: 16, color: '#111' }}>{editId ? 'Edit data' : 'Input data baru'} — {cfg.label}</p>
-            <button onClick={() => { setShowForm(false); setEditId(null) }} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888' }}>×</button>
+            <button onClick={() => { setShowForm(false); setEditId(null); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '' }]) }} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888' }}>×</button>
           </div>
 
           {/* Info dasar */}
@@ -422,8 +450,98 @@ export default function AffiliatePage() {
             </div>
           ))}
 
+          {activeTab !== 'paid' && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600,
+                color: '#9CA3AF', textTransform: 'uppercase',
+                letterSpacing: '0.06em', background: '#F3F4F6',
+                padding: '4px 10px', borderRadius: 4, display: 'inline-block' }}>
+                Biaya Tambahan
+              </p>
+              {biayaTambahanList.map((item, idx) => (
+                <div key={idx} style={{ display: 'grid',
+                  gridTemplateColumns: '1fr 1fr auto', gap: 10, marginBottom: 8 }}>
+                  <div>
+                    <label style={{ fontSize: 12, color: '#374151',
+                      fontWeight: 500, display: 'block', marginBottom: 5 }}>
+                      Jenis Biaya
+                    </label>
+                    <select
+                      value={item.jenis}
+                      onChange={(e) => {
+                        const updated = [...biayaTambahanList]
+                        updated[idx].jenis = e.target.value
+                        setBiayaTambahanList(updated)
+                      }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8,
+                        border: '1px solid #D1D5DB', fontSize: 13, color: '#111',
+                        background: '#fff' }}>
+                      {BIAYA_TAMBAHAN_OPTIONS.map(o => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: '#374151',
+                      fontWeight: 500, display: 'block', marginBottom: 5 }}>
+                      Nominal (Rp)
+                    </label>
+                    <input
+                      type="number"
+                      value={item.nominal}
+                      onChange={(e) => {
+                        const updated = [...biayaTambahanList]
+                        updated[idx].nominal = e.target.value
+                        setBiayaTambahanList(updated)
+                        setForm(f => ({
+                          ...f,
+                          cost: hitungTotalCost(f, updated)
+                        }))
+                      }}
+                      placeholder="0"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8,
+                        border: '1px solid #D1D5DB', fontSize: 13, color: '#111',
+                        background: '#fff', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 2 }}>
+                    {biayaTambahanList.length > 1 && (
+                      <button
+                        onClick={() => {
+                          const updated = biayaTambahanList.filter((_, i) => i !== idx)
+                          setBiayaTambahanList(updated)
+                          setForm(f => ({ ...f, cost: hitungTotalCost(f, updated) }))
+                        }}
+                        style={{ padding: '8px 12px', borderRadius: 8,
+                          border: '1px solid #FECACA', background: '#FEF2F2',
+                          color: '#DC2626', cursor: 'pointer', fontSize: 13 }}>
+                        Hapus
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={() => setBiayaTambahanList([
+                  ...biayaTambahanList,
+                  { jenis: 'Biaya Campaign', nominal: '' }
+                ])}
+                style={{ padding: '7px 16px', borderRadius: 8, fontSize: 13,
+                  border: '1px dashed #D1D5DB', background: '#F9FAFB',
+                  color: '#374151', cursor: 'pointer', marginTop: 4 }}>
+                + Tambah biaya
+              </button>
+              <div style={{ marginTop: 12, padding: '10px 14px',
+                background: '#F0FDF4', borderRadius: 8, border: '1px solid #BBF7D0' }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#166534' }}>
+                  <strong>Total Cost (otomatis):</strong> Rp {Number(form.cost || 0).toLocaleString('id-ID')}
+                </p>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-            <button onClick={() => { setShowForm(false); setForm(buildEmpty(activeTab)); setEditId(null) }}
+            <button onClick={() => { setShowForm(false); setForm(buildEmpty(activeTab)); setEditId(null); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '' }]) }}
               style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151' }}>Batal</button>
             <button onClick={handleSubmit} disabled={saving}
               style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: '#16A34A', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
@@ -442,7 +560,7 @@ export default function AffiliatePage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input type="month" value={bulan} onChange={e => setBulan(e.target.value)}
             style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }} />
-          <button onClick={() => { setShowForm(true); setForm(buildEmpty(activeTab)); setEditId(null) }}
+          <button onClick={() => { setShowForm(true); setForm(buildEmpty(activeTab)); setEditId(null); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '' }]) }}
             style={{ padding: '8px 18px', borderRadius: 8, background: '#16A34A', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
             + Input data
           </button>
@@ -452,7 +570,7 @@ export default function AffiliatePage() {
       {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
-          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua') }}
+          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '' }]) }}
             style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
             {pc.label}
           </button>
