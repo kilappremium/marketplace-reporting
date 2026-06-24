@@ -1,151 +1,531 @@
-"use client";
+'use client'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer
+} from 'recharts'
 
-import { useEffect, useMemo, useState } from "react";
-import TabelData from "@/components/TabelData";
-import { formatRupiah, formatTanggal } from "@/lib/format";
-import { supabase } from "@/lib/supabase";
+// ─── Format helpers ───────────────────────────────────────
+const fmt    = n => (!n && n !== 0) ? '-' : Number(n).toLocaleString('id-ID')
+const fmtRp  = n => (!n && n !== 0) ? '-' : 'Rp ' + Number(n).toLocaleString('id-ID')
+const fmtPct = n => (!n && n !== 0) ? '-' : Number(n).toFixed(2) + '%'
+const fmtX   = n => (!n && n !== 0) ? '-' : Number(n).toFixed(2) + 'x'
+const sum    = (arr, f) => arr.reduce((a, b) => a + (Number(b[f]) || 0), 0)
+const avg    = (arr, f) => arr.length ? (sum(arr, f) / arr.length).toFixed(2) : 0
+
+// ─── Konfigurasi platform ─────────────────────────────────
+const PLATFORM_CONFIG = {
+  monthly: {
+    label: 'Monthly',
+    table: 'affiliate_monthly',
+    color: { bg: '#FFF0E6', text: '#993C1D' },
+  },
+  weekly: {
+    label: 'Weekly',
+    table: 'affiliate_weekly',
+    color: { bg: '#F0F0FF', text: '#3C3489' },
+  },
+  paid: {
+    label: 'Paid Partnership',
+    table: 'affiliate_paid',
+    color: { bg: '#E6F1FB', text: '#0C447C' },
+  },
+}
+
+// ─── Field definitions ────────────────────────────────────
+const COMMON_FIELDS = [
+  { section: 'Revenue',
+    fields: [
+      { label: 'GMV (Rp)', name: 'gmv', type: 'number' },
+      { label: 'Take Rate GMV % (auto)', name: 'take_rate_gmv', auto: true },
+      { label: 'Growth Revenue % (auto)', name: 'growth_revenue', auto: true },
+      { label: 'Average Revenue (Rp) (auto)', name: 'average_revenue', auto: true },
+    ]
+  },
+  { section: 'Affiliate',
+    fields: [
+      { label: 'Affiliate Acquisition', name: 'affiliate_acquisition', type: 'number' },
+      { label: 'Total Affiliate', name: 'total_affiliate', type: 'number' },
+      { label: 'Making Sales Rate % (auto)', name: 'making_sales_rate', auto: true },
+      { label: 'Conv Rate % (auto)', name: 'conv_rate', auto: true },
+      { label: 'Acquisition Cost Per Product (auto)', name: 'acquisition_cost_per_product', auto: true },
+    ]
+  },
+  { section: 'Produk & Konten',
+    fields: [
+      { label: 'Items Sold TikTok', name: 'items_sold_tiktok', type: 'number' },
+      { label: 'Items Sold Shopee', name: 'items_sold_shopee', type: 'number' },
+      { label: 'Average Product Price (Rp)', name: 'average_product_price', type: 'number' },
+      { label: 'Jumlah Video', name: 'jumlah_video', type: 'number' },
+      { label: 'Jumlah Live Shopping', name: 'jumlah_live_shopping', type: 'number' },
+    ]
+  },
+  { section: 'Biaya',
+    fields: [
+      { label: 'Cost (Rp)', name: 'cost', type: 'number' },
+      { label: 'Rate Cost ke GMV % (auto)', name: 'rate_cost_gmv', auto: true },
+      { label: 'Komisi Affiliate TikTok (Rp)', name: 'komisi_tiktok', type: 'number' },
+      { label: 'Komisi Affiliate Shopee (Rp)', name: 'komisi_shopee', type: 'number' },
+      { label: 'Fee COGS Produk TikTok (Rp)', name: 'fee_cogs_tiktok', type: 'number' },
+      { label: 'Fee COGS Produk Shopee (Rp)', name: 'fee_cogs_shopee', type: 'number' },
+      { label: 'Ongkir (Rp)', name: 'ongkir', type: 'number' },
+      { label: 'Fee Partnership (Rp)', name: 'fee_partnership', type: 'number' },
+      { label: 'Sample Produk TikTok (Rp)', name: 'sample_tiktok', type: 'number' },
+      { label: 'Sample Produk Shopee (Rp)', name: 'sample_shopee', type: 'number' },
+      { label: 'Biaya Tambahan (Rp)', name: 'biaya_tambahan', type: 'number' },
+      { label: 'Keterangan Biaya', name: 'keterangan_biaya', type: 'text' },
+    ]
+  },
+]
+
+const PAID_FIELDS = [
+  { section: 'Info Partner',
+    fields: [
+      { label: 'Nama Partner *', name: 'nama_partner', type: 'text' },
+      { label: 'Platform', name: 'platform', type: 'select', options: ['tiktok', 'shopee', 'instagram', 'youtube'] },
+    ]
+  },
+  { section: 'Revenue',
+    fields: [
+      { label: 'GMV (Rp)', name: 'gmv', type: 'number' },
+      { label: 'Take Rate GMV % (auto)', name: 'take_rate_gmv', auto: true },
+      { label: 'Conv Rate %', name: 'conv_rate', type: 'number' },
+      { label: 'Items Sold', name: 'items_sold', type: 'number' },
+    ]
+  },
+  { section: 'Konten',
+    fields: [
+      { label: 'Jumlah Konten', name: 'jumlah_konten', type: 'number' },
+      { label: 'Reach', name: 'reach', type: 'number' },
+      { label: 'Impresi', name: 'impresi', type: 'number' },
+      { label: 'Engagement Rate % (auto)', name: 'engagement_rate', auto: true },
+    ]
+  },
+  { section: 'Biaya',
+    fields: [
+      { label: 'Cost (Rp)', name: 'cost', type: 'number' },
+      { label: 'Rate Cost ke GMV % (auto)', name: 'rate_cost_gmv', auto: true },
+      { label: 'Komisi TikTok (Rp)', name: 'komisi_tiktok', type: 'number' },
+      { label: 'Komisi Shopee (Rp)', name: 'komisi_shopee', type: 'number' },
+      { label: 'Fee Partnership (Rp)', name: 'fee_partnership', type: 'number' },
+      { label: 'Sample TikTok (Rp)', name: 'sample_tiktok', type: 'number' },
+      { label: 'Sample Shopee (Rp)', name: 'sample_shopee', type: 'number' },
+      { label: 'Biaya Tambahan (Rp)', name: 'biaya_tambahan', type: 'number' },
+      { label: 'Keterangan Biaya', name: 'keterangan_biaya', type: 'text' },
+    ]
+  },
+]
+
+const ALL_FIELD_NAMES = {
+  monthly: ['gmv','take_rate_gmv','growth_revenue','affiliate_acquisition','total_affiliate',
+    'making_sales_rate','conv_rate','average_revenue','items_sold_tiktok','items_sold_shopee',
+    'average_product_price','acquisition_cost_per_product','jumlah_video','jumlah_live_shopping',
+    'cost','rate_cost_gmv','komisi_tiktok','komisi_shopee','fee_cogs_tiktok','fee_cogs_shopee',
+    'ongkir','fee_partnership','sample_tiktok','sample_shopee','biaya_tambahan','keterangan_biaya','periode'],
+  weekly: ['gmv','take_rate_gmv','growth_revenue','affiliate_acquisition','total_affiliate',
+    'making_sales_rate','conv_rate','average_revenue','items_sold_tiktok','items_sold_shopee',
+    'average_product_price','acquisition_cost_per_product','jumlah_video','jumlah_live_shopping',
+    'cost','rate_cost_gmv','komisi_tiktok','komisi_shopee','fee_cogs_tiktok','fee_cogs_shopee',
+    'ongkir','fee_partnership','sample_tiktok','sample_shopee','biaya_tambahan','keterangan_biaya','periode'],
+  paid: ['nama_partner','platform','gmv','take_rate_gmv','conv_rate','items_sold','jumlah_konten',
+    'reach','impresi','engagement_rate','cost','rate_cost_gmv','komisi_tiktok','komisi_shopee',
+    'fee_partnership','sample_tiktok','sample_shopee','biaya_tambahan','keterangan_biaya'],
+}
+
+function buildEmpty(tab) {
+  const base = {
+    tanggal: new Date().toISOString().split('T')[0],
+    nama_partner: '', platform: 'tiktok', periode: '',
+  }
+  ALL_FIELD_NAMES[tab].forEach(f => { if (!(f in base)) base[f] = '' })
+  return base
+}
+
+function autoCalc(form, tab, prevGmv) {
+  const f = { ...form }
+  const gmv    = Number(f.gmv) || 0
+  const cost   = Number(f.cost) || 0
+  const totalAff = Number(f.total_affiliate) || 0
+  const makingSales = Number(f.affiliate_acquisition) || 0
+  const itemsTiktok = Number(f.items_sold_tiktok) || 0
+  const itemsShopee = Number(f.items_sold_shopee) || 0
+  const totalItems  = itemsTiktok + itemsShopee
+  const reach  = Number(f.reach) || 0
+  const impresi = Number(f.impresi) || 0
+
+  if (gmv && cost)        f.take_rate_gmv   = (cost / gmv * 100).toFixed(2)
+  if (gmv && cost)        f.rate_cost_gmv   = (cost / gmv * 100).toFixed(2)
+  if (totalAff && makingSales) f.making_sales_rate = (makingSales / totalAff * 100).toFixed(2)
+  if (totalItems && totalAff)  f.conv_rate        = (totalItems / totalAff * 100).toFixed(2)
+  if (gmv && totalItems)  f.average_revenue  = (gmv / totalItems).toFixed(0)
+  if (cost && totalItems) f.acquisition_cost_per_product = (cost / totalItems).toFixed(0)
+  if (prevGmv && gmv)     f.growth_revenue   = ((gmv - prevGmv) / prevGmv * 100).toFixed(2)
+  if (reach && impresi)   f.engagement_rate  = (impresi / reach * 100).toFixed(2)
+
+  return f
+}
+
+const statusBadge = {
+  aktif:   { bg: '#DCFCE7', text: '#166534', label: 'Aktif' },
+  pause:   { bg: '#FEF9C3', text: '#854D0E', label: 'Pause' },
+  selesai: { bg: '#FEE2E2', text: '#991B1B', label: 'Selesai' },
+}
 
 export default function AffiliatePage() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab]     = useState('monthly')
+  const [data, setData]               = useState({ monthly: [], weekly: [], paid: [] })
+  const [loading, setLoading]         = useState(true)
+  const [showForm, setShowForm]       = useState(false)
+  const [form, setForm]               = useState(buildEmpty('monthly'))
+  const [saving, setSaving]           = useState(false)
+  const [notif, setNotif]             = useState('')
+  const [editId, setEditId]           = useState(null)
+  const [bulan, setBulan]             = useState(new Date().toISOString().slice(0, 7))
+  const [prevGmv, setPrevGmv]         = useState(0)
 
-  useEffect(() => {
-    async function fetchAffiliate() {
-      setLoading(true);
-      setError(null);
+  useEffect(() => { fetchAll() }, [bulan])
 
-      const { data, error: fetchError } = await supabase
-        .from("affiliate")
-        .select("*")
-        .order("tanggal", { ascending: false });
+  async function fetchAll() {
+    setLoading(true)
+    const [r1, r2, r3] = await Promise.all([
+      supabase.from('affiliate_monthly').select('*').order('tanggal', { ascending: false }),
+      supabase.from('affiliate_weekly').select('*').order('tanggal', { ascending: false }),
+      supabase.from('affiliate_paid').select('*').order('tanggal', { ascending: false }),
+    ])
+    const filterBulan = arr => (arr || []).filter(r => r.tanggal && r.tanggal.startsWith(bulan))
+    const monthly = filterBulan(r1.data)
+    const weekly  = filterBulan(r2.data)
+    setData({ monthly, weekly, paid: filterBulan(r3.data) })
 
-      if (fetchError) {
-        setError(fetchError.message);
-        setRows([]);
-      } else {
-        setRows(data ?? []);
-      }
+    // Ambil GMV minggu lalu untuk Growth Revenue
+    const thisWeekGmv = weekly.length ? Number(weekly[0]?.gmv) : 0
+    const lastWeek = (r2.data || []).filter(r => {
+      const d = new Date(r.tanggal)
+      const now = new Date()
+      const diff = (now - d) / (1000 * 60 * 60 * 24)
+      return diff >= 7 && diff < 14
+    })
+    setPrevGmv(lastWeek.length ? Number(lastWeek[0]?.gmv) : 0)
+    setLoading(false)
+  }
 
-      setLoading(false);
+  function handleChange(e) {
+    const { name, value } = e.target
+    setForm(f => autoCalc({ ...f, [name]: value }, activeTab, prevGmv))
+  }
+
+  async function handleSubmit() {
+    if (!form.tanggal) {
+      setNotif('error:Tanggal wajib diisi!')
+      return
     }
+    if (activeTab === 'paid' && !form.nama_partner) {
+      setNotif('error:Nama partner wajib diisi!')
+      return
+    }
+    setSaving(true)
+    const payload = { tanggal: form.tanggal }
+    ALL_FIELD_NAMES[activeTab].forEach(f => {
+      payload[f] = (f === 'keterangan_biaya' || f === 'nama_partner' || f === 'platform' || f === 'periode')
+        ? (form[f] || '')
+        : (Number(form[f]) || 0)
+    })
+    if (payload.keterangan_biaya !== undefined) payload.keterangan_biaya = form.keterangan_biaya || ''
+    if (payload.nama_partner !== undefined) payload.nama_partner = form.nama_partner || ''
+    if (payload.platform !== undefined) payload.platform = form.platform || 'tiktok'
+    if (payload.periode !== undefined) payload.periode = form.periode || ''
 
-    fetchAffiliate();
-  }, []);
+    const tbl = PLATFORM_CONFIG[activeTab].table
+    if (editId) {
+      await supabase.from(tbl).update(payload).eq('id', editId)
+      setNotif('ok:Data berhasil diperbarui!')
+      setEditId(null)
+    } else {
+      await supabase.from(tbl).insert([payload])
+      setNotif('ok:Data berhasil disimpan!')
+    }
+    setSaving(false)
+    setForm(buildEmpty(activeTab))
+    setShowForm(false)
+    fetchAll()
+    setTimeout(() => setNotif(''), 3000)
+  }
 
-  const summary = useMemo(() => {
-    return rows.reduce(
-      (acc, row) => {
-        acc.komisi += Number(row.komisi) || 0;
-        acc.klik += Number(row.klik) || 0;
-        acc.konversi += Number(row.konversi) || 0;
-        acc.pendapatan += Number(row.pendapatan) || 0;
-        return acc;
-      },
-      { komisi: 0, klik: 0, konversi: 0, pendapatan: 0 },
-    );
-  }, [rows]);
+  function handleEdit(row) {
+    setForm({ ...buildEmpty(activeTab), ...row })
+    setEditId(row.id)
+    setShowForm(true)
+    window.scrollTo(0, 0)
+  }
 
-  const columns = [
-    {
-      key: "tanggal",
-      label: "Tanggal",
-      nowrap: true,
-      render: (row) => formatTanggal(row.tanggal),
-    },
-    {
-      key: "platform",
-      label: "Platform",
-      render: (row) => (
-        <span className="inline-flex rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-700">
-          {row.platform || "-"}
-        </span>
-      ),
-    },
-    {
-      key: "nama_affiliate",
-      label: "Nama Affiliate",
-      render: (row) => row.nama_affiliate || "-",
-      className: "font-medium text-zinc-900",
-    },
-    {
-      key: "klik",
-      label: "Klik",
-      align: "right",
-      render: (row) => Number(row.klik || 0).toLocaleString("id-ID"),
-    },
-    {
-      key: "konversi",
-      label: "Konversi",
-      align: "right",
-      render: (row) => Number(row.konversi || 0).toLocaleString("id-ID"),
-    },
-    {
-      key: "pendapatan",
-      label: "Pendapatan",
-      align: "right",
-      render: (row) => formatRupiah(row.pendapatan),
-    },
-    {
-      key: "komisi",
-      label: "Komisi",
-      align: "right",
-      render: (row) => formatRupiah(row.komisi),
-      className: "font-medium text-orange-700",
-    },
-  ];
+  async function handleDelete(id) {
+    if (!confirm('Yakin hapus data ini?')) return
+    await supabase.from(PLATFORM_CONFIG[activeTab].table).delete().eq('id', id)
+    fetchAll()
+  }
+
+  const rows = data[activeTab] || []
+  const cfg  = PLATFORM_CONFIG[activeTab]
+  const fields = activeTab === 'paid' ? PAID_FIELDS : COMMON_FIELDS
+
+  // Summary cards
+  const summaryCommon = [
+    { label: 'Total GMV', value: fmtRp(sum(rows, 'gmv')) },
+    { label: 'Growth Revenue', value: fmtPct(avg(rows, 'growth_revenue')) },
+    { label: 'Total Affiliate', value: fmt(sum(rows, 'total_affiliate')) },
+    { label: 'Making Sales Rate', value: fmtPct(avg(rows, 'making_sales_rate')) },
+    { label: 'Conv Rate', value: fmtPct(avg(rows, 'conv_rate')) },
+    { label: 'Total Cost', value: fmtRp(sum(rows, 'cost')) },
+    { label: 'Rate Cost ke GMV', value: fmtPct(avg(rows, 'rate_cost_gmv')) },
+    { label: 'Items Sold TikTok', value: fmt(sum(rows, 'items_sold_tiktok')) },
+    { label: 'Items Sold Shopee', value: fmt(sum(rows, 'items_sold_shopee')) },
+  ]
+
+  const summaryPaid = [
+    { label: 'Total GMV', value: fmtRp(sum(rows, 'gmv')) },
+    { label: 'Total Cost', value: fmtRp(sum(rows, 'cost')) },
+    { label: 'Rate Cost ke GMV', value: fmtPct(avg(rows, 'rate_cost_gmv')) },
+    { label: 'Total Items Sold', value: fmt(sum(rows, 'items_sold')) },
+    { label: 'Total Konten', value: fmt(sum(rows, 'jumlah_konten')) },
+    { label: 'Total Reach', value: fmt(sum(rows, 'reach')) },
+    { label: 'Conv Rate', value: fmtPct(avg(rows, 'conv_rate')) },
+    { label: 'Engagement Rate', value: fmtPct(avg(rows, 'engagement_rate')) },
+  ]
+
+  const summaryCards = activeTab === 'paid' ? summaryPaid : summaryCommon
+
+  // Grafik tren GMV
+  const grafik = [...rows]
+    .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+    .map(r => ({
+      tgl: r.tanggal.slice(8) || r.tanggal.slice(5),
+      gmv: Number(r.gmv) || 0,
+      cost: Number(r.cost) || 0,
+    }))
+
+  const fmtRpAxis = v => {
+    if (v >= 1000000) return 'Rp ' + (v / 1000000).toFixed(1) + 'jt'
+    if (v >= 1000)    return 'Rp ' + (v / 1000).toFixed(0) + 'rb'
+    return 'Rp ' + v
+  }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Data Affiliate</h1>
-        <p className="mt-2 text-zinc-600">
-          Performa program affiliate dan komisi yang dihasilkan.
-        </p>
-      </header>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px', fontFamily: 'sans-serif', background: '#F9FAFB', minHeight: '100vh' }}>
 
-      {error && (
-        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          Gagal memuat data: {error}
+      {notif && (
+        <div style={{ padding: '12px 16px', borderRadius: 8, marginBottom: 16, fontSize: 14, background: notif.startsWith('ok:') ? '#DCFCE7' : '#FEE2E2', color: notif.startsWith('ok:') ? '#166534' : '#991B1B' }}>
+          {notif.replace(/^(ok|error):/, '')}
         </div>
       )}
 
-      <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-zinc-500">Total Komisi</p>
-          <p className="mt-2 text-2xl font-bold text-orange-600">
-            {loading ? "..." : formatRupiah(summary.komisi)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-zinc-500">Total Pendapatan</p>
-          <p className="mt-2 text-2xl font-bold text-emerald-600">
-            {loading ? "..." : formatRupiah(summary.pendapatan)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-zinc-500">Total Klik</p>
-          <p className="mt-2 text-2xl font-bold text-blue-600">
-            {loading ? "..." : summary.klik.toLocaleString("id-ID")}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-zinc-500">Total Konversi</p>
-          <p className="mt-2 text-2xl font-bold text-violet-600">
-            {loading ? "..." : summary.konversi.toLocaleString("id-ID")}
-          </p>
-        </div>
-      </section>
+      {/* ── FORM INPUT ── */}
+      {showForm && (
+        <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <p style={{ margin: 0, fontWeight: 600, fontSize: 16, color: '#111' }}>{editId ? 'Edit data' : 'Input data baru'} — {cfg.label}</p>
+            <button onClick={() => { setShowForm(false); setEditId(null) }} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888' }}>×</button>
+          </div>
 
-      <TabelData
-        title="Daftar Affiliate"
-        subtitle={`${rows.length.toLocaleString("id-ID")} entri affiliate.`}
-        columns={columns}
-        rows={rows}
-        loading={loading}
-        emptyMessage="Belum ada data affiliate."
-        getRowKey={(row) => row.id ?? `${row.tanggal}-${row.nama_affiliate}`}
-      />
+          {/* Info dasar */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 12, marginBottom: 20 }}>
+            <div>
+              <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Tanggal *</label>
+              <input type="date" name="tanggal" value={form.tanggal || ''} onChange={handleChange}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+            </div>
+            {(activeTab === 'monthly' || activeTab === 'weekly') && (
+              <div>
+                <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>Periode (opsional)</label>
+                <input type="text" name="periode" value={form.periode || ''} onChange={handleChange}
+                  placeholder={activeTab === 'weekly' ? 'cth: Minggu 1 Juni' : 'cth: Juni 2026'}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+              </div>
+            )}
+          </div>
+
+          {/* Field per section */}
+          {fields.map(section => (
+            <div key={section.section} style={{ marginBottom: 16 }}>
+              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em', background: '#F3F4F6', padding: '4px 10px', borderRadius: 4, display: 'inline-block' }}>{section.section}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px,1fr))', gap: 10 }}>
+                {section.fields.map(f => (
+                  <div key={f.name}>
+                    <label style={{ fontSize: 12, color: '#374151', fontWeight: 500, display: 'block', marginBottom: 5 }}>{f.label}</label>
+                    {f.type === 'select' ? (
+                      <select name={f.name} value={form[f.name] || ''} onChange={handleChange}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }}>
+                        {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : (
+                      <input type={f.type || 'number'} name={f.name} value={form[f.name] || ''}
+                        onChange={handleChange} readOnly={f.auto} placeholder={f.auto ? 'otomatis' : '0'}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: f.auto ? '#6B7280' : '#111', background: f.auto ? '#F3F4F6' : '#fff', boxSizing: 'border-box' }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+            <button onClick={() => { setShowForm(false); setForm(buildEmpty(activeTab)); setEditId(null) }}
+              style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151' }}>Batal</button>
+            <button onClick={handleSubmit} disabled={saving}
+              style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: '#16A34A', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+              {saving ? 'Menyimpan...' : editId ? 'Perbarui data' : 'Simpan data'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── HEADER ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111' }}>Affiliate Reporting</p>
+          <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Monthly · Weekly · Paid Partnership · {bulan}</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input type="month" value={bulan} onChange={e => setBulan(e.target.value)}
+            style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }} />
+          <button onClick={() => { setShowForm(true); setForm(buildEmpty(activeTab)); setEditId(null) }}
+            style={{ padding: '8px 18px', borderRadius: 8, background: '#16A34A', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+            + Input data
+          </button>
+        </div>
+      </div>
+
+      {/* ── TABS ── */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
+          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)) }}
+            style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
+            {pc.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p style={{ color: '#9CA3AF', fontSize: 14 }}>Memuat data...</p>
+      ) : (
+        <>
+          {/* ── GRAFIK TREN ── */}
+          {grafik.length > 0 && (
+            <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>Tren GMV vs Cost — {cfg.label}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: '#6B7280' }}>Perbandingan GMV dan biaya per periode</p>
+                </div>
+                <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 20, height: 2, background: '#16A34A', display: 'inline-block', borderRadius: 2 }}></span>
+                    <span style={{ color: '#6B7280' }}>GMV</span>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 20, height: 2, background: '#DC2626', display: 'inline-block', borderRadius: 2 }}></span>
+                    <span style={{ color: '#6B7280' }}>Cost</span>
+                  </span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={grafik} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                  <XAxis dataKey="tgl" tick={{ fontSize: 11, fill: '#9CA3AF' }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} />
+                  <YAxis tickFormatter={fmtRpAxis} tick={{ fontSize: 11, fill: '#9CA3AF' }} tickLine={false} axisLine={false} width={70} />
+                  <Tooltip
+                    formatter={(v, name) => ['Rp ' + Number(v).toLocaleString('id-ID'), name === 'gmv' ? 'GMV' : 'Cost']}
+                    labelFormatter={l => 'Tgl: ' + l}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E5E7EB' }}
+                  />
+                  <Line type="monotone" dataKey="gmv" stroke="#16A34A" strokeWidth={2} dot={{ r: 3, fill: '#16A34A', strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="cost" stroke="#DC2626" strokeWidth={2} dot={{ r: 3, fill: '#DC2626', strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* ── SUMMARY CARDS ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: 20 }}>
+            {summaryCards.map(m => (
+              <div key={m.label} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#6B7280', fontWeight: 500 }}>{m.label}</p>
+                <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111' }}>{m.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* ── TABEL DATA ── */}
+          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>
+                Detail data — <span style={{ color: cfg.color.text }}>{cfg.label}</span>
+              </p>
+              <span style={{ fontSize: 12, color: '#9CA3AF' }}>{rows.length} entri</span>
+            </div>
+            {rows.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF' }}>
+                <p style={{ fontSize: 14, margin: '0 0 8px' }}>Belum ada data untuk bulan ini</p>
+                <p style={{ fontSize: 12, margin: 0 }}>Klik "Input data" untuk menambahkan</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: '#F9FAFB' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Tanggal</th>
+                      {activeTab !== 'paid' && <th style={{ textAlign: 'left', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Periode</th>}
+                      {activeTab === 'paid' && <th style={{ textAlign: 'left', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Partner</th>}
+                      {activeTab === 'paid' && <th style={{ textAlign: 'left', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Platform</th>}
+                      <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>GMV</th>
+                      <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Cost</th>
+                      <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Rate Cost</th>
+                      {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Growth</th>}
+                      {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Total Aff</th>}
+                      {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Making Sales</th>}
+                      <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Conv Rate</th>
+                      {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items TikTok</th>}
+                      {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items Shopee</th>}
+                      {activeTab === 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items Sold</th>}
+                      {activeTab === 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Konten</th>}
+                      {activeTab === 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Reach</th>}
+                      <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(row => (
+                      <tr key={row.id} style={{ borderBottom: '0.5px solid #F3F4F6' }}>
+                        <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', color: '#374151' }}>{row.tanggal}</td>
+                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', color: '#374151' }}>{row.periode || '-'}</td>}
+                        {activeTab === 'paid' && <td style={{ padding: '7px 10px', color: '#374151', fontWeight: 500 }}>{row.nama_partner}</td>}
+                        {activeTab === 'paid' && <td style={{ padding: '7px 10px', color: '#374151' }}>{row.platform}</td>}
+                        <td style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#111', fontWeight: 500 }}>{fmtRp(row.gmv)}</td>
+                        <td style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#374151' }}>{fmtRp(row.cost)}</td>
+                        <td style={{ padding: '7px 10px', textAlign: 'right', color: Number(row.rate_cost_gmv) <= 20 ? '#166534' : '#991B1B', fontWeight: 500 }}>{fmtPct(row.rate_cost_gmv)}</td>
+                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: Number(row.growth_revenue) >= 0 ? '#166534' : '#991B1B', fontWeight: 500 }}>{fmtPct(row.growth_revenue)}</td>}
+                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.total_affiliate)}</td>}
+                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmtPct(row.making_sales_rate)}</td>}
+                        <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmtPct(row.conv_rate)}</td>
+                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold_tiktok)}</td>}
+                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold_shopee)}</td>}
+                        {activeTab === 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold)}</td>}
+                        {activeTab === 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.jumlah_konten)}</td>}
+                        {activeTab === 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.reach)}</td>}
+                        <td style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <button onClick={() => handleEdit(row)}
+                            style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', marginRight: 6, color: '#374151' }}>Edit</button>
+                          <button onClick={() => handleDelete(row.id)}
+                            style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>Hapus</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
-  );
+  )
 }
