@@ -4,9 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { href: "/", label: "Dashboard" },
-  { href: "/penjualan", label: "Penjualan" },
-  { href: "/ads", label: "Iklan" },
+  { href: "/penjualan", label: "Dashboard Utama" },
+  { href: "/ads", label: "Performance Marketing" },
   { href: "/affiliate", label: "Affiliate" },
   { href: "/livestream", label: "Livestream" },
   { href: "/input", label: "Input Data" },
