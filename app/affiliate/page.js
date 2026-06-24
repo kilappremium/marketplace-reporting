@@ -47,8 +47,9 @@ const COMMON_FIELDS = [
     fields: [
       { label: 'Affiliate Acquisition', name: 'affiliate_acquisition', type: 'number' },
       { label: 'Total Affiliate', name: 'total_affiliate', type: 'number' },
+      { label: 'Jumlah Making Sales', name: 'jumlah_making_sales', type: 'number' },
       { label: 'Making Sales Rate % (auto)', name: 'making_sales_rate', auto: true },
-      { label: 'Conv Rate % (auto)', name: 'conv_rate', auto: true },
+      { label: 'Making Sales Rate %', name: 'conv_rate', auto: true },
       { label: 'Acquisition Cost Per Product (auto)', name: 'acquisition_cost_per_product', auto: true },
     ]
   },
@@ -117,12 +118,12 @@ const PAID_FIELDS = [
 
 const ALL_FIELD_NAMES = {
   monthly: ['gmv','take_rate_gmv','growth_revenue','affiliate_acquisition','total_affiliate',
-    'making_sales_rate','conv_rate','average_revenue','items_sold_tiktok','items_sold_shopee',
+    'jumlah_making_sales','making_sales_rate','conv_rate','average_revenue','items_sold_tiktok','items_sold_shopee',
     'average_product_price','acquisition_cost_per_product','jumlah_video','jumlah_live_shopping',
     'cost','rate_cost_gmv','komisi_tiktok','komisi_shopee','fee_cogs_tiktok','fee_cogs_shopee',
     'ongkir','fee_partnership','sample_tiktok','sample_shopee','biaya_tambahan','periode'],
   weekly: ['gmv','take_rate_gmv','growth_revenue','affiliate_acquisition','total_affiliate',
-    'making_sales_rate','conv_rate','average_revenue','items_sold_tiktok','items_sold_shopee',
+    'jumlah_making_sales','making_sales_rate','conv_rate','average_revenue','items_sold_tiktok','items_sold_shopee',
     'average_product_price','acquisition_cost_per_product','jumlah_video','jumlah_live_shopping',
     'cost','rate_cost_gmv','komisi_tiktok','komisi_shopee','fee_cogs_tiktok','fee_cogs_shopee',
     'ongkir','fee_partnership','sample_tiktok','sample_shopee','biaya_tambahan','periode'],
@@ -146,7 +147,7 @@ function autoCalc(form, tab, prevGmv) {
   const gmv    = Number(f.gmv) || 0
   const cost   = Number(f.cost) || 0
   const totalAff = Number(f.total_affiliate) || 0
-  const makingSales = Number(f.affiliate_acquisition) || 0
+  const jumlahMakingSales = Number(f.jumlah_making_sales) || 0
   const itemsTiktok = Number(f.items_sold_tiktok) || 0
   const itemsShopee = Number(f.items_sold_shopee) || 0
   const totalItems  = itemsTiktok + itemsShopee
@@ -155,7 +156,7 @@ function autoCalc(form, tab, prevGmv) {
 
   if (gmv && cost)        f.take_rate_gmv   = (cost / gmv * 100).toFixed(2)
   if (gmv && cost)        f.rate_cost_gmv   = (cost / gmv * 100).toFixed(2)
-  if (totalAff && makingSales) f.making_sales_rate = (makingSales / totalAff * 100).toFixed(2)
+  if (totalAff && jumlahMakingSales) f.making_sales_rate = (jumlahMakingSales / totalAff * 100).toFixed(2)
   if (totalItems && totalAff)  f.conv_rate        = (totalItems / totalAff * 100).toFixed(2)
   if (gmv && totalItems)  f.average_revenue  = (gmv / totalItems).toFixed(0)
   if (cost && totalItems) f.acquisition_cost_per_product = (cost / totalItems).toFixed(0)
@@ -769,8 +770,8 @@ export default function AffiliatePage() {
                       <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Rate Cost</th>
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Growth</th>}
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Total Aff</th>}
-                      {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Making Sales</th>}
-                      <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Conv Rate</th>
+                      {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Jml Making Sales</th>}
+                      <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>{activeTab !== 'paid' ? 'Making Sales Rate' : 'Conv Rate'}</th>
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items TikTok</th>}
                       {activeTab !== 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items Shopee</th>}
                       {activeTab === 'paid' && <th style={{ textAlign: 'right', padding: '8px 10px', color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #E5E7EB' }}>Items Sold</th>}
@@ -800,7 +801,7 @@ export default function AffiliatePage() {
                         <td style={{ padding: '7px 10px', textAlign: 'right', color: Number(row.rate_cost_gmv) <= 20 ? '#166534' : '#991B1B', fontWeight: 500 }}>{fmtPct(row.rate_cost_gmv)}</td>
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: Number(row.growth_revenue) >= 0 ? '#166534' : '#991B1B', fontWeight: 500 }}>{fmtPct(row.growth_revenue)}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.total_affiliate)}</td>}
-                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmtPct(row.making_sales_rate)}</td>}
+                        {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.jumlah_making_sales)}</td>}
                         <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmtPct(row.conv_rate)}</td>
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold_tiktok)}</td>}
                         {activeTab !== 'paid' && <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.items_sold_shopee)}</td>}
