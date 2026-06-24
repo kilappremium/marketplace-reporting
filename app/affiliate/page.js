@@ -202,7 +202,7 @@ export default function AffiliatePage() {
   const [prevGmv, setPrevGmv]         = useState(0)
   const [filterMinggu, setFilterMinggu] = useState('semua')
   const [biayaTambahanList, setBiayaTambahanList] = useState([
-    { jenis: 'Biaya Campaign', nominal: '' }
+    { jenis: 'Biaya Campaign', nominal: '', keterangan: '' }
   ])
 
   useEffect(() => { fetchAll() }, [bulan])
@@ -288,7 +288,7 @@ export default function AffiliatePage() {
     }
     setSaving(false)
     setForm(buildEmpty(activeTab))
-    setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '' }])
+    setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }])
     setShowForm(false)
     fetchAll()
     setTimeout(() => setNotif(''), 3000)
@@ -378,7 +378,7 @@ export default function AffiliatePage() {
         <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <p style={{ margin: 0, fontWeight: 600, fontSize: 16, color: '#111' }}>{editId ? 'Edit data' : 'Input data baru'} — {cfg.label}</p>
-            <button onClick={() => { setShowForm(false); setEditId(null); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '' }]) }} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888' }}>×</button>
+            <button onClick={() => { setShowForm(false); setEditId(null); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888' }}>×</button>
           </div>
 
           {/* Info dasar */}
@@ -460,7 +460,7 @@ export default function AffiliatePage() {
               </p>
               {biayaTambahanList.map((item, idx) => (
                 <div key={idx} style={{ display: 'grid',
-                  gridTemplateColumns: '1fr 1fr auto', gap: 10, marginBottom: 8 }}>
+                  gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, marginBottom: 8 }}>
                   <div>
                     <label style={{ fontSize: 12, color: '#374151',
                       fontWeight: 500, display: 'block', marginBottom: 5 }}>
@@ -504,6 +504,25 @@ export default function AffiliatePage() {
                         background: '#fff', boxSizing: 'border-box' }}
                     />
                   </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: '#374151',
+                      fontWeight: 500, display: 'block', marginBottom: 5 }}>
+                      Keterangan
+                    </label>
+                    <input
+                      type="text"
+                      value={item.keterangan || ''}
+                      onChange={(e) => {
+                        const updated = [...biayaTambahanList]
+                        updated[idx].keterangan = e.target.value
+                        setBiayaTambahanList(updated)
+                      }}
+                      placeholder="cth: Campaign Juni, THR lebaran..."
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8,
+                        border: '1px solid #D1D5DB', fontSize: 13, color: '#111',
+                        background: '#fff', boxSizing: 'border-box' }}
+                    />
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 2 }}>
                     {biayaTambahanList.length > 1 && (
                       <button
@@ -524,7 +543,7 @@ export default function AffiliatePage() {
               <button
                 onClick={() => setBiayaTambahanList([
                   ...biayaTambahanList,
-                  { jenis: 'Biaya Campaign', nominal: '' }
+                  { jenis: 'Biaya Campaign', nominal: '', keterangan: '' }
                 ])}
                 style={{ padding: '7px 16px', borderRadius: 8, fontSize: 13,
                   border: '1px dashed #D1D5DB', background: '#F9FAFB',
@@ -541,7 +560,7 @@ export default function AffiliatePage() {
           )}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-            <button onClick={() => { setShowForm(false); setForm(buildEmpty(activeTab)); setEditId(null); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '' }]) }}
+            <button onClick={() => { setShowForm(false); setForm(buildEmpty(activeTab)); setEditId(null); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
               style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151' }}>Batal</button>
             <button onClick={handleSubmit} disabled={saving}
               style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: '#16A34A', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
@@ -560,7 +579,7 @@ export default function AffiliatePage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input type="month" value={bulan} onChange={e => setBulan(e.target.value)}
             style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }} />
-          <button onClick={() => { setShowForm(true); setForm(buildEmpty(activeTab)); setEditId(null); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '' }]) }}
+          <button onClick={() => { setShowForm(true); setForm(buildEmpty(activeTab)); setEditId(null); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
             style={{ padding: '8px 18px', borderRadius: 8, background: '#16A34A', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
             + Input data
           </button>
@@ -570,7 +589,7 @@ export default function AffiliatePage() {
       {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
-          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '' }]) }}
+          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
             style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
             {pc.label}
           </button>
