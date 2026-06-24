@@ -522,17 +522,33 @@ export default function AffiliatePage() {
                   name="tanggal"
                   value={form.tanggal_week || ''}
                   onChange={(e) => {
-                    const weekVal = e.target.value
+                    const weekVal = e.target.value // format: 2026-W24
                     if (weekVal) {
-                      const [year, week] = weekVal.split('-W')
-                      const jan4 = new Date(year, 0, 4)
-                      const dayOfWeek = jan4.getDay() || 7
-                      const mondayW1 = new Date(jan4)
-                      mondayW1.setDate(jan4.getDate() - dayOfWeek + 1)
-                      const monday = new Date(mondayW1)
-                      monday.setDate(mondayW1.getDate() + (Number(week) - 1) * 7)
-                      const dateStr = monday.toISOString().split('T')[0]
-                      setForm(f => ({ ...f, tanggal: dateStr, tanggal_week: weekVal }))
+                      const [yearStr, weekStr] = weekVal.split('-W')
+                      const year = parseInt(yearStr)
+                      const week = parseInt(weekStr)
+
+                      // Hitung tanggal Senin minggu ke-N (ISO week)
+                      // Gunakan metode yang tidak terpengaruh timezone
+                      const jan4 = new Date(year, 0, 4) // 4 Jan selalu di week 1
+                      const jan4Day = jan4.getDay() || 7 // 1=Sen, 7=Min
+                      const mondayW1 = new Date(year, 0, 4 - jan4Day + 1)
+
+                      // Tambah (week-1) * 7 hari
+                      const targetMonday = new Date(mondayW1)
+                      targetMonday.setDate(mondayW1.getDate() + (week - 1) * 7)
+
+                      // Format manual YYYY-MM-DD tanpa konversi timezone
+                      const y = targetMonday.getFullYear()
+                      const m = String(targetMonday.getMonth() + 1).padStart(2, '0')
+                      const d = String(targetMonday.getDate()).padStart(2, '0')
+                      const dateStr = `${y}-${m}-${d}`
+
+                      setForm(f => ({
+                        ...f,
+                        tanggal: dateStr,
+                        tanggal_week: weekVal
+                      }))
                     }
                   }}
                   style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff', boxSizing: 'border-box' }}
