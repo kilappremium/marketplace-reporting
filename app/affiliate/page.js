@@ -201,6 +201,8 @@ export default function AffiliatePage() {
   const [bulan, setBulan]             = useState(new Date().toISOString().slice(0, 7))
   const [prevGmv, setPrevGmv]         = useState(0)
   const [filterMinggu, setFilterMinggu] = useState('semua')
+  const [halamanTabel, setHalamanTabel] = useState(1)
+  const BARIS_PER_HALAMAN = 5
   const [biayaTambahanList, setBiayaTambahanList] = useState([
     { jenis: 'Biaya Campaign', nominal: '', keterangan: '' }
   ])
@@ -358,6 +360,11 @@ export default function AffiliatePage() {
     }
     return all
   })()
+  const totalHalaman = Math.ceil(rows.length / BARIS_PER_HALAMAN)
+  const rowsPaginated = rows.slice(
+    (halamanTabel - 1) * BARIS_PER_HALAMAN,
+    halamanTabel * BARIS_PER_HALAMAN
+  )
   const cfg  = PLATFORM_CONFIG[activeTab]
   const fields = activeTab === 'paid' ? PAID_FIELDS : COMMON_FIELDS
 
@@ -633,7 +640,7 @@ export default function AffiliatePage() {
       {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
-          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
+          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setHalamanTabel(1); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
             style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
             {pc.label}
           </button>
@@ -645,7 +652,7 @@ export default function AffiliatePage() {
       ) : (
         <>
           {activeTab === 'weekly' && (() => {
-            const mingguList = [...new Set(
+            const mingguList = [...new Map(
               (data.weekly || []).map(r => {
                 if (!r.tanggal) return null
                 const d = new Date(r.tanggal)
@@ -653,26 +660,39 @@ export default function AffiliatePage() {
                 const weekNum = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7)
                 const endDate = new Date(d)
                 endDate.setDate(d.getDate() + 6)
-                return JSON.stringify({
-                  key: r.tanggal,
-                  label: `W${weekNum} · ${d.getDate()}/${d.getMonth()+1} - ${endDate.getDate()}/${endDate.getMonth()+1}/${d.getFullYear()}`
-                })
+                const label = `W${weekNum} · ${d.getDate()}/${d.getMonth()+1} - ${endDate.getDate()}/${endDate.getMonth()+1}/${d.getFullYear()}`
+                return [r.tanggal, { key: r.tanggal, label }]
               }).filter(Boolean)
-            )].map(s => JSON.parse(s))
+            ).values()]
+            .sort((a, b) => b.key.localeCompare(a.key))
 
             return (
-              <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 500 }}>Filter minggu:</span>
-                <button onClick={() => setFilterMinggu('semua')}
-                  style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: '1px solid', borderColor: filterMinggu === 'semua' ? '#3C3489' : '#E5E7EB', background: filterMinggu === 'semua' ? '#F0F0FF' : '#fff', color: filterMinggu === 'semua' ? '#3C3489' : '#6B7280', fontWeight: filterMinggu === 'semua' ? 500 : 400 }}>
-                  Semua minggu
-                </button>
-                {mingguList.map(m => (
-                  <button key={m.key} onClick={() => setFilterMinggu(m.key)}
-                    style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: '1px solid', borderColor: filterMinggu === m.key ? '#3C3489' : '#E5E7EB', background: filterMinggu === m.key ? '#F0F0FF' : '#fff', color: filterMinggu === m.key ? '#3C3489' : '#6B7280', fontWeight: filterMinggu === m.key ? 500 : 400 }}>
-                    {m.label}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10,
+                marginBottom: 16, background: '#fff', border: '1px solid #E5E7EB',
+                borderRadius: 10, padding: '12px 16px' }}>
+                <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                  Filter minggu:
+                </span>
+                <select
+                  value={filterMinggu}
+                  onChange={(e) => { setFilterMinggu(e.target.value); setHalamanTabel(1) }}
+                  style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1D5DB',
+                    fontSize: 13, color: '#111', background: '#fff', cursor: 'pointer',
+                    minWidth: 220 }}>
+                  <option value="semua">Semua minggu ({mingguList.length} minggu)</option>
+                  {mingguList.map(m => (
+                    <option key={m.key} value={m.key}>{m.label}</option>
+                  ))}
+                </select>
+                {filterMinggu !== 'semua' && (
+                  <button
+                    onClick={() => { setFilterMinggu('semua'); setHalamanTabel(1) }}
+                    style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12,
+                      border: '1px solid #E5E7EB', background: '#F9FAFB',
+                      color: '#6B7280', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    Reset filter
                   </button>
-                ))}
+                )}
               </div>
             )
           })()}
@@ -760,7 +780,7 @@ export default function AffiliatePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(row => (
+                    {rowsPaginated.map(row => (
                       <tr key={row.id} style={{ borderBottom: '0.5px solid #F3F4F6' }}>
                         <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', color: '#374151' }}>
                           {activeTab === 'weekly' ? (() => {
@@ -797,6 +817,45 @@ export default function AffiliatePage() {
                     ))}
                   </tbody>
                 </table>
+                {totalHalaman > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'center', marginTop: 14, paddingTop: 12,
+                    borderTop: '1px solid #F3F4F6' }}>
+                    <p style={{ margin: 0, fontSize: 12, color: '#6B7280' }}>
+                      Menampilkan {((halamanTabel-1)*BARIS_PER_HALAMAN)+1}–{Math.min(halamanTabel*BARIS_PER_HALAMAN, rows.length)} dari {rows.length} data
+                    </p>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <button
+                        onClick={() => setHalamanTabel(p => Math.max(1, p-1))}
+                        disabled={halamanTabel === 1}
+                        style={{ padding: '6px 12px', borderRadius: 6, fontSize: 12,
+                          border: '1px solid #E5E7EB', background: halamanTabel === 1 ? '#F9FAFB' : '#fff',
+                          color: halamanTabel === 1 ? '#D1D5DB' : '#374151', cursor: halamanTabel === 1 ? 'default' : 'pointer' }}>
+                        ← Prev
+                      </button>
+                      {Array.from({ length: totalHalaman }, (_, i) => i + 1).map(p => (
+                        <button key={p} onClick={() => setHalamanTabel(p)}
+                          style={{ padding: '6px 10px', borderRadius: 6, fontSize: 12,
+                            border: '1px solid',
+                            borderColor: halamanTabel === p ? '#3C3489' : '#E5E7EB',
+                            background: halamanTabel === p ? '#F0F0FF' : '#fff',
+                            color: halamanTabel === p ? '#3C3489' : '#374151',
+                            fontWeight: halamanTabel === p ? 600 : 400,
+                            cursor: 'pointer' }}>
+                          {p}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setHalamanTabel(p => Math.min(totalHalaman, p+1))}
+                        disabled={halamanTabel === totalHalaman}
+                        style={{ padding: '6px 12px', borderRadius: 6, fontSize: 12,
+                          border: '1px solid #E5E7EB', background: halamanTabel === totalHalaman ? '#F9FAFB' : '#fff',
+                          color: halamanTabel === totalHalaman ? '#D1D5DB' : '#374151', cursor: halamanTabel === totalHalaman ? 'default' : 'pointer' }}>
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
