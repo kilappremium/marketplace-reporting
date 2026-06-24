@@ -258,6 +258,9 @@ export default function AffiliatePage() {
     const weekly  = filterBulan(r2.data, true)
     setData({ monthly, weekly, paid: filterBulan(r3.data) })
 
+    console.log('Total weekly data:', (r2.data || []).length)
+    console.log('Weekly dates:', (r2.data || []).map(r => r.tanggal).sort())
+
     // Ambil GMV periode sebelumnya untuk Growth Revenue
     const allWeekly = r2.data || []
     const sorted = [...allWeekly].sort((a, b) =>
@@ -394,7 +397,11 @@ export default function AffiliatePage() {
   const rows = (() => {
     const all = data[activeTab] || []
     if (activeTab === 'weekly' && filterMinggu !== 'semua') {
-      return all.filter(r => r.tanggal === filterMinggu)
+      return all.filter(r => {
+        if (!r.tanggal) return false
+        // Bandingkan tanggal Senin minggu tersebut
+        return r.tanggal === filterMinggu
+      })
     }
     return all
   })()
@@ -457,7 +464,24 @@ export default function AffiliatePage() {
   const summaryCards = activeTab === 'paid' ? summaryPaid : summaryCommon
 
   // Grafik tren GMV
-  const grafik = [...rows]
+  const grafik = activeTab === 'weekly' ? (() => {
+    // Ambil semua data weekly (bukan hanya rows yang difilter)
+    const allWeekly = [...(data.weekly || [])]
+      .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+
+    return allWeekly.map(r => {
+      const d = new Date(r.tanggal)
+      const startOfYear = new Date(d.getFullYear(), 0, 1)
+      const weekNum = Math.ceil(
+        ((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7
+      )
+      return {
+        tgl: `W${weekNum}`,
+        gmv: Number(r.gmv) || 0,
+        cost: Number(r.cost) || 0,
+      }
+    })
+  })() : [...rows]
     .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
     .map(r => ({
       tgl: r.tanggal.slice(8) || r.tanggal.slice(5),
@@ -708,19 +732,30 @@ export default function AffiliatePage() {
       ) : (
         <>
           {activeTab === 'weekly' && (() => {
-            const mingguList = [...new Map(
-              (data.weekly || []).map(r => {
-                if (!r.tanggal) return null
-                const d = new Date(r.tanggal)
-                const startOfYear = new Date(d.getFullYear(), 0, 1)
-                const weekNum = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7)
-                const endDate = new Date(d)
-                endDate.setDate(d.getDate() + 6)
-                const label = `W${weekNum} · ${d.getDate()}/${d.getMonth()+1} - ${endDate.getDate()}/${endDate.getMonth()+1}/${d.getFullYear()}`
-                return [r.tanggal, { key: r.tanggal, label }]
-              }).filter(Boolean)
-            ).values()]
-            .sort((a, b) => b.key.localeCompare(a.key))
+            const mingguList = (() => {
+              const seen = new Set()
+              const result = []
+
+              ;(data.weekly || [])
+                .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
+                .forEach(r => {
+                  if (!r.tanggal) return
+                  if (seen.has(r.tanggal)) return
+                  seen.add(r.tanggal)
+
+                  const d = new Date(r.tanggal)
+                  const startOfYear = new Date(d.getFullYear(), 0, 1)
+                  const weekNum = Math.ceil(
+                    ((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7
+                  )
+                  const endDate = new Date(d)
+                  endDate.setDate(d.getDate() + 6)
+                  const label = `W${weekNum} · ${d.getDate()}/${d.getMonth()+1} - ${endDate.getDate()}/${endDate.getMonth()+1}/${d.getFullYear()}`
+                  result.push({ key: r.tanggal, label })
+                })
+
+              return result
+            })()
 
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10,
