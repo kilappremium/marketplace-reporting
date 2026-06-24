@@ -226,23 +226,21 @@ export default function AffiliatePage() {
         .order('tanggal', { ascending: false }),
     ])
 
-    // Cek apakah ada data di bulan yang dipilih
-    const monthlyFiltered = (r1.data || []).filter(r =>
-      r.tanggal && r.tanggal.startsWith(bulan)
-    )
-
-    // Kalau tidak ada data di bulan sekarang,
-    // otomatis pindah ke bulan terbaru yang ada datanya
-    if (monthlyFiltered.length === 0 && r1.data && r1.data.length > 0) {
-      const latestDate = r1.data
-        .map(r => r.tanggal)
-        .filter(Boolean)
-        .sort()
-        .reverse()[0]
-      if (latestDate) {
-        const latestBulan = latestDate.slice(0, 7)
-        setBulan(latestBulan)
-        return // fetchAll akan dipanggil ulang otomatis karena bulan berubah
+    // Cek apakah ada data di bulan yang dipilih (hanya tab monthly)
+    if (activeTab === 'monthly') {
+      const monthlyFiltered = (r1.data || []).filter(r =>
+        r.tanggal && r.tanggal.startsWith(bulan)
+      )
+      if (monthlyFiltered.length === 0 && r1.data && r1.data.length > 0) {
+        const latestDate = r1.data
+          .map(r => r.tanggal)
+          .filter(Boolean)
+          .sort()
+          .reverse()[0]
+        if (latestDate) {
+          setBulan(latestDate.slice(0, 7))
+          return // fetchAll akan dipanggil ulang otomatis karena bulan berubah
+        }
       }
     }
 
@@ -800,7 +798,7 @@ export default function AffiliatePage() {
       {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
-          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setHalamanTabel(1); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
+          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setFilterBulanPaid(''); setHalamanTabel(1); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
             style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
             {pc.label}
           </button>
