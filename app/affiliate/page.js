@@ -295,11 +295,17 @@ export default function AffiliatePage() {
     { label: 'Growth Revenue', value: fmtPct(avg(rows, 'growth_revenue')) },
     { label: 'Total Affiliate', value: fmt(sum(rows, 'total_affiliate')) },
     { label: 'Making Sales Rate', value: fmtPct(avg(rows, 'making_sales_rate')) },
-    { label: 'Conv Rate', value: fmtPct(avg(rows, 'conv_rate')) },
-    { label: 'Total Cost', value: fmtRp(sum(rows, 'cost')) },
-    { label: 'Rate Cost ke GMV', value: fmtPct(avg(rows, 'rate_cost_gmv')) },
-    { label: 'Items Sold TikTok', value: fmt(sum(rows, 'items_sold_tiktok')) },
-    { label: 'Items Sold Shopee', value: fmt(sum(rows, 'items_sold_shopee')) },
+    { label: 'Acquisition Cost Per Product', value: fmtRp(avg(rows, 'acquisition_cost_per_product')) },
+    { label: 'Jumlah Video', value: fmt(sum(rows, 'jumlah_video')) },
+    { label: 'Cost', value: fmtRp(sum(rows, 'cost')) },
+    {
+      label: 'ROI',
+      value: (() => {
+        const totalGmv = sum(rows, 'gmv')
+        const totalCost = sum(rows, 'cost')
+        return totalCost > 0 ? fmtX(totalGmv / totalCost) : '-'
+      })()
+    },
   ]
 
   const summaryPaid = [
