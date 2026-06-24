@@ -309,7 +309,9 @@ export default function AffiliatePage() {
     const { name, value } = e.target
     setForm(f => {
       const updated = autoCalc({ ...f, [name]: value }, activeTab, prevGmv)
-      updated.cost = hitungTotalCost(updated, biayaTambahanList)
+      if (activeTab !== 'paid') {
+        updated.cost = hitungTotalCost(updated, biayaTambahanList)
+      }
       return updated
     })
   }
@@ -339,6 +341,8 @@ export default function AffiliatePage() {
         biayaTambahanList.filter(b => b.nominal || b.keterangan)
       )
       payload.cost = hitungTotalCost(form, biayaTambahanList)
+    } else {
+      payload.cost = Number(form.cost) || 0
     }
 
     const tbl = PLATFORM_CONFIG[activeTab].table
@@ -650,8 +654,8 @@ export default function AffiliatePage() {
                       </select>
                     ) : (
                       <input type={f.type || 'number'} name={f.name} value={form[f.name] || ''}
-                        onChange={handleChange} readOnly={f.auto} placeholder={f.placeholder || (f.auto ? 'otomatis' : '0')}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: f.auto ? '#6B7280' : '#111', background: f.auto ? '#F3F4F6' : '#fff', boxSizing: 'border-box' }} />
+                        onChange={handleChange} readOnly={f.auto && !(activeTab === 'paid' && f.name === 'cost')} placeholder={f.placeholder || (f.auto ? 'otomatis' : '0')}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: f.auto ? '#6B7280' : '#111', background: (f.auto && !(activeTab === 'paid' && f.name === 'cost')) ? '#F3F4F6' : '#fff', boxSizing: 'border-box' }} />
                     )}
                   </div>
                 ))}
