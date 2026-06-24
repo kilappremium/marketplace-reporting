@@ -10,169 +10,89 @@ import {
 } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 
-function StatCard({ label, value, color = "text-zinc-900" }) {
-  return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-zinc-500">{label}</p>
-      <p className={`mt-2 text-2xl font-bold ${color}`}>{value}</p>
-    </div>
-  );
-}
-
-export default function DashboardPage() {
-  const [penjualan, setPenjualan] = useState([]);
-  const [adsData, setAdsData] = useState([]);
-  const [affiliate, setAffiliate] = useState([]);
-  const [livestream, setLivestream] = useState([]);
+export default function PenjualanPage() {
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    async function fetchAll() {
+    async function fetchPenjualan() {
       setLoading(true);
       setError(null);
 
-      const [penjualanRes, shopeeRes, tiktokRes, metaRes, affiliateRes, livestreamRes] =
-        await Promise.all([
-          supabase.from("penjualan").select("*").order("tanggal", { ascending: false }),
-          supabase.from("ads_shopee").select("*").order("tanggal", { ascending: false }),
-          supabase.from("ads_tiktok").select("*").order("tanggal", { ascending: false }),
-          supabase.from("ads_meta").select("*").order("tanggal", { ascending: false }),
-          supabase.from("affiliate").select("*").order("tanggal", { ascending: false }),
-          supabase.from("livestream").select("*").order("tanggal", { ascending: false }),
-        ]);
+      const { data, error: fetchError } = await supabase
+        .from("penjualan")
+        .select("*")
+        .order("tanggal", { ascending: false });
 
-      const errors = [
-        penjualanRes.error,
-        shopeeRes.error,
-        tiktokRes.error,
-        metaRes.error,
-        affiliateRes.error,
-        livestreamRes.error,
-      ]
-        .filter(Boolean)
-        .map((err) => err.message);
-
-      if (errors.length) {
-        setError(errors.join(" | "));
+      if (fetchError) {
+        setError(fetchError.message);
+        setRows([]);
+      } else {
+        setRows(data ?? []);
       }
 
-      const combinedAds = [
-        ...(shopeeRes.data ?? []).map((row) => ({ ...row, platform: "Shopee Ads" })),
-        ...(tiktokRes.data ?? []).map((row) => ({ ...row, platform: "TikTok Ads" })),
-        ...(metaRes.data ?? []).map((row) => ({ ...row, platform: "Meta Ads" })),
-      ].sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
-
-      setPenjualan(penjualanRes.data ?? []);
-      setAdsData(combinedAds);
-      setAffiliate(affiliateRes.data ?? []);
-      setLivestream(livestreamRes.data ?? []);
       setLoading(false);
     }
 
-    fetchAll();
+    fetchPenjualan();
   }, []);
 
-  const totalPendapatanPenjualan = useMemo(
-    () => penjualan.reduce((sum, row) => sum + (Number(row.total) || 0), 0),
-    [penjualan],
+  const totalPendapatan = useMemo(
+    () => rows.reduce((sum, row) => sum + (Number(row.total) || 0), 0),
+    [rows],
   );
 
-  const totalBiayaIklan = useMemo(
-    () => adsData.reduce((sum, row) => sum + (Number(row.biaya_iklan) || 0), 0),
-    [adsData],
-  );
-
-  const totalOmzetIklan = useMemo(
-    () => adsData.reduce((sum, row) => sum + (Number(row.omzet) || 0), 0),
-    [adsData],
-  );
-
-  const totalKomisiAffiliate = useMemo(
-    () => affiliate.reduce((sum, row) => sum + (Number(row.komisi) || 0), 0),
-    [affiliate],
-  );
-
-  const totalPendapatanLivestream = useMemo(
-    () => livestream.reduce((sum, row) => sum + (Number(row.pendapatan) || 0), 0),
-    [livestream],
-  );
-
-  const weeklyData = useMemo(() => aggregateWeeklySales(penjualan), [penjualan]);
-
-  const latestRows = useMemo(() => {
-    const combined = [
-      ...penjualan.map((row) => ({
-        ...row,
-        sumber: "Penjualan",
-        nilai: row.total,
-      })),
-      ...adsData.map((row) => ({
-        ...row,
-        sumber: "Iklan",
-        nilai: row.omzet,
-        keterangan: row.nama_kampanye,
-      })),
-      ...affiliate.map((row) => ({
-        ...row,
-        sumber: "Affiliate",
-        nilai: row.komisi,
-        keterangan: row.nama_affiliate,
-      })),
-      ...livestream.map((row) => ({
-        ...row,
-        sumber: "Livestream",
-        nilai: row.pendapatan,
-        keterangan: row.judul_live,
-      })),
-    ];
-
-    return combined
-      .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal))
-      .slice(0, 10);
-  }, [penjualan, adsData, affiliate, livestream]);
+  const weeklyData = useMemo(() => aggregateWeeklySales(rows), [rows]);
 
   const columns = [
     {
       key: "tanggal",
       label: "Tanggal",
+      nowrap: true,
       render: (row) => formatTanggal(row.tanggal),
     },
     {
-      key: "sumber",
-      label: "Sumber",
-      render: (row) => (
-        <span className="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700">
-          {row.sumber}
-        </span>
-      ),
-    },
-    {
-      key: "keterangan",
-      label: "Keterangan",
-      render: (row) => row.keterangan || row.produk || row.nama_kampanye || "-",
+      key: "produk",
+      label: "Produk",
+      render: (row) => row.produk || "-",
       className: "font-medium text-zinc-900",
     },
     {
-      key: "platform",
-      label: "Platform",
-      render: (row) => row.platform || row.marketplace || "-",
+      key: "marketplace",
+      label: "Marketplace",
+      render: (row) => row.marketplace || "-",
     },
     {
-      key: "nilai",
-      label: "Nilai",
+      key: "jumlah",
+      label: "Jumlah",
       align: "right",
-      render: (row) => formatRupiah(row.nilai),
+      render: (row) => Number(row.jumlah || 0).toLocaleString("id-ID"),
+    },
+    {
+      key: "total",
+      label: "Total",
+      align: "right",
+      render: (row) => formatRupiah(row.total),
       className: "font-medium text-emerald-700",
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (row) => (
+        <span className="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700">
+          {row.status || "-"}
+        </span>
+      ),
     },
   ];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Data Penjualan</h1>
         <p className="mt-2 text-zinc-600">
-          Ringkasan performa penjualan, iklan, affiliate, dan livestream.
+          Daftar transaksi penjualan dari semua marketplace.
         </p>
       </header>
 
@@ -182,37 +102,19 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard
-          label="Pendapatan Penjualan"
-          value={loading ? "..." : formatRupiah(totalPendapatanPenjualan)}
-          color="text-emerald-600"
-        />
-        <StatCard
-          label="Total Pesanan"
-          value={loading ? "..." : penjualan.length.toLocaleString("id-ID")}
-          color="text-blue-600"
-        />
-        <StatCard
-          label="Total Biaya Iklan"
-          value={loading ? "..." : formatRupiah(totalBiayaIklan)}
-          color="text-violet-600"
-        />
-        <StatCard
-          label="Total Omzet Iklan"
-          value={loading ? "..." : formatRupiah(totalOmzetIklan)}
-          color="text-amber-600"
-        />
-        <StatCard
-          label="Komisi Affiliate"
-          value={loading ? "..." : formatRupiah(totalKomisiAffiliate)}
-          color="text-orange-600"
-        />
-        <StatCard
-          label="Pendapatan Livestream"
-          value={loading ? "..." : formatRupiah(totalPendapatanLivestream)}
-          color="text-rose-600"
-        />
+      <section className="mb-8 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-medium text-zinc-500">Total Pendapatan</p>
+          <p className="mt-2 text-3xl font-bold text-emerald-600">
+            {loading ? "..." : formatRupiah(totalPendapatan)}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-medium text-zinc-500">Total Pesanan</p>
+          <p className="mt-2 text-3xl font-bold text-blue-600">
+            {loading ? "..." : rows.length.toLocaleString("id-ID")}
+          </p>
+        </div>
       </section>
 
       <div className="mb-8">
@@ -220,15 +122,13 @@ export default function DashboardPage() {
       </div>
 
       <TabelData
-        title="Aktivitas Terbaru"
-        subtitle="10 entri terbaru dari semua sumber data."
+        title="Semua Data Penjualan"
+        subtitle={`${rows.length.toLocaleString("id-ID")} transaksi.`}
         columns={columns}
-        rows={latestRows}
+        rows={rows}
         loading={loading}
-        emptyMessage="Belum ada data."
-        getRowKey={(row, index) =>
-          `${row.sumber}-${row.platform ?? ""}-${row.id ?? row.tanggal}-${index}`
-        }
+        emptyMessage="Belum ada data penjualan."
+        getRowKey={(row) => row.id ?? `${row.tanggal}-${row.produk}`}
       />
     </div>
   );
