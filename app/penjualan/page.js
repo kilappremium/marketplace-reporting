@@ -228,18 +228,14 @@ Berikan:
     `
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/ai-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: konteks }]
-        })
+        body: JSON.stringify({ prompt: konteks }),
       })
       const json = await res.json()
-      const text = json.content?.map(c => c.text || '').join('') || ''
-      setAiText(text)
+      if (json.error) throw new Error(json.error)
+      setAiText(json.text)
     } catch (err) {
       setAiError('Gagal memuat analisis AI. Coba lagi.')
     }
