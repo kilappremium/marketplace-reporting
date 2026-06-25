@@ -400,30 +400,22 @@ export default function AffiliatePage() {
         if (!r.tanggal) return false
         const rDate = new Date(r.tanggal)
         const fDate = new Date(filterMinggu)
-        // Bandingkan tahun, bulan, hari secara terpisah
-        // untuk hindari masalah timezone
         return rDate.getFullYear() === fDate.getFullYear() &&
                rDate.getMonth() === fDate.getMonth() &&
                rDate.getDate() === fDate.getDate()
       })
     }
     if (activeTab === 'paid') {
+      let filtered = all
       if (filterStartDate && filterEndDate) {
-        return all.filter(r => {
-          if (!r.tanggal) return false
-          return r.tanggal >= filterStartDate &&
-                 r.tanggal <= filterEndDate
-        })
+        filtered = all.filter(r => r.tanggal &&
+          r.tanggal >= filterStartDate && r.tanggal <= filterEndDate)
+      } else if (filterStartDate) {
+        filtered = all.filter(r => r.tanggal && r.tanggal >= filterStartDate)
+      } else if (filterEndDate) {
+        filtered = all.filter(r => r.tanggal && r.tanggal <= filterEndDate)
       }
-      if (filterStartDate) {
-        return all.filter(r => r.tanggal &&
-          r.tanggal >= filterStartDate)
-      }
-      if (filterEndDate) {
-        return all.filter(r => r.tanggal &&
-          r.tanggal <= filterEndDate)
-      }
-      return all
+      return groupPaidData(filtered)
     }
     return all
   })()
@@ -497,7 +489,9 @@ export default function AffiliatePage() {
       value: (() => {
         const akunGmv = rows.filter(r => (Number(r.gmv) || 0) > 0).length
         const totalAff = rows.length
-        return totalAff > 0 ? fmtPct(akunGmv / totalAff * 100) : '-'
+        return totalAff > 0
+          ? fmtPct(akunGmv / totalAff * 100)
+          : '-'
       })()
     },
     {
@@ -571,6 +565,60 @@ export default function AffiliatePage() {
     if (v >= 1000000) return 'Rp ' + (v / 1000000).toFixed(1) + 'jt'
     if (v >= 1000)    return 'Rp ' + (v / 1000).toFixed(0) + 'rb'
     return 'Rp ' + v
+  }
+
+  function groupPaidData(rows) {
+    if (!rows || rows.length === 0) return []
+
+    const grouped = {}
+
+    rows.forEach(row => {
+      const key = (row.nama_partner || '').toLowerCase().trim()
+      if (!key) return
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          id: row.id,
+          nama_partner: row.nama_partner,
+          platform: row.platform,
+          tanggal: row.tanggal,
+          gmv: 0,
+          jumlah_konten: 0,
+          jumlah_live: 0,
+          cost: 0,
+          items_sold: 0,
+          reach: 0,
+          impresi: 0,
+          _conv_rate_sum: 0,
+          _engagement_rate_sum: 0,
+          _count: 0,
+          _ids: [],
+        }
+      }
+
+      grouped[key].gmv += Number(row.gmv) || 0
+      grouped[key].jumlah_konten += Number(row.jumlah_konten) || 0
+      grouped[key].jumlah_live += Number(row.jumlah_live) || 0
+      grouped[key].cost += Number(row.cost) || 0
+      grouped[key].items_sold += Number(row.items_sold) || 0
+      grouped[key].reach += Number(row.reach) || 0
+      grouped[key].impresi += Number(row.impresi) || 0
+
+      grouped[key]._conv_rate_sum += Number(row.conv_rate) || 0
+      grouped[key]._engagement_rate_sum += Number(row.engagement_rate) || 0
+      grouped[key]._count += 1
+      grouped[key]._ids.push(row.id)
+    })
+
+    return Object.values(grouped).map(g => ({
+      ...g,
+      roi: g.cost > 0 ? (g.gmv / g.cost).toFixed(2) : 0,
+      conv_rate: g._count > 0
+        ? (g._conv_rate_sum / g._count).toFixed(2) : 0,
+      engagement_rate: g._count > 0
+        ? (g._engagement_rate_sum / g._count).toFixed(2) : 0,
+      _merged_count: g._count,
+    }))
   }
 
   return (
@@ -1021,9 +1069,6 @@ export default function AffiliatePage() {
                   </thead>
                   <tbody>
                     {rowsPaginated.map(row => {
-                      const gmvVal = Number(row.gmv) || 0
-                      const costVal = Number(row.cost) || 0
-                      const roiVal = gmvVal && costVal ? gmvVal / costVal : null
                       const platformColors = {
                         tiktok: { bg: '#F3F4F6', color: '#111' },
                         shopee: { bg: '#FFF0E6', color: '#993C1D' },
@@ -1033,7 +1078,28 @@ export default function AffiliatePage() {
                       const pStyle = platformColors[row.platform] || { bg: '#F3F4F6', color: '#374151' }
                       return (
                         <tr key={row.id} style={{ borderBottom: '0.5px solid #F3F4F6' }}>
-                          <td style={{ padding: '7px 10px', color: '#374151', fontWeight: 500 }}>{row.nama_partner}</td>
+                          <td style={{ padding: '10px 12px', color: '#1A1A1A', fontWeight: 500 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{
+                                width: 32, height: 32, borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #FF6B35, #FF8C00)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 12, color: '#fff', fontWeight: 700, flexShrink: 0,
+                              }}>
+                                {(row.nama_partner || '?').charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1A1A1A' }}>
+                                  {row.nama_partner}
+                                </p>
+                                {row._merged_count > 1 && (
+                                  <p style={{ margin: 0, fontSize: 10, color: '#FF6B35' }}>
+                                    {row._merged_count} entri digabung
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
                           <td style={{ padding: '7px 10px' }}>
                             <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500, background: pStyle.bg, color: pStyle.color, textTransform: 'capitalize' }}>{row.platform}</span>
                           </td>
@@ -1041,8 +1107,20 @@ export default function AffiliatePage() {
                           <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.jumlah_konten)}</td>
                           <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmt(row.jumlah_live)}</td>
                           <td style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: '#374151' }}>{fmtRp(row.cost)}</td>
-                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 500, color: roiVal !== null ? (roiVal >= 2 ? '#166534' : '#991B1B') : '#374151' }}>
-                            {roiVal !== null ? fmtX(roiVal) : '-'}
+                          <td style={{ padding: '7px 10px', textAlign: 'right' }}>
+                            {(() => {
+                              const roiVal = row.cost > 0
+                                ? (row.gmv / row.cost) : 0
+                              const roiDisplay = roiVal > 0 ? roiVal.toFixed(2) + 'x' : '-'
+                              return (
+                                <span style={{
+                                  fontWeight: 600,
+                                  color: roiVal >= 2 ? '#166534' : roiVal > 0 ? '#854D0E' : '#991B1B'
+                                }}>
+                                  {roiDisplay}
+                                </span>
+                              )
+                            })()}
                           </td>
                           <td style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                             <button onClick={() => handleEdit(row)}
