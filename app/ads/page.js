@@ -196,6 +196,8 @@ export default function AdsPage() {
   const [uploadPreview, setUploadPreview] = useState([])
   const [uploadPlatform, setUploadPlatform] = useState('shopee')
   const [uploadNotif, setUploadNotif] = useState('')
+  const [halamanTabel, setHalamanTabel] = useState(1)
+  const BARIS_PER_HALAMAN = 10
 
   useEffect(() => { fetchAll() }, [bulan])
 
@@ -307,6 +309,12 @@ export default function AdsPage() {
   }
 
   const rows = data[activeTab] || []
+  const filtered = rows
+  const totalHalaman = Math.ceil(filtered.length / BARIS_PER_HALAMAN)
+  const rowsPaginated = filtered.slice(
+    (halamanTabel - 1) * BARIS_PER_HALAMAN,
+    halamanTabel * BARIS_PER_HALAMAN
+  )
   const cfg  = PLATFORM_CONFIG[activeTab]
 
   // summary cards per active tab
@@ -520,7 +528,7 @@ export default function AdsPage() {
           <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Full funnel per platform · {bulan}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input type="month" value={bulan} onChange={e => setBulan(e.target.value)}
+          <input type="month" value={bulan} onChange={e => { setBulan(e.target.value); setHalamanTabel(1) }}
             style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }} />
           <button onClick={() => { setShowUpload(true); setUploadPlatform(activeTab) }}
             style={{ padding: '8px 18px', borderRadius: 8, background: '#fff', color: '#374151', border: '1px solid #D1D5DB', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
@@ -536,7 +544,7 @@ export default function AdsPage() {
       {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
-          <button key={key} onClick={() => { setActiveTab(key); setFilterJenis('semua') }}
+          <button key={key} onClick={() => { setActiveTab(key); setFilterJenis('semua'); setHalamanTabel(1) }}
             style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
             {pc.label}
           </button>
@@ -690,7 +698,7 @@ export default function AdsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(row => {
+                    {rowsPaginated.map(row => {
                       const sb = statusBadge[row.status] || statusBadge.aktif
                       return (
                         <tr key={row.id} style={{ borderBottom: '0.5px solid #F3F4F6' }}>
@@ -715,6 +723,82 @@ export default function AdsPage() {
                     })}
                   </tbody>
                 </table>
+                {totalHalaman > 1 && (
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'center', marginTop: 16, paddingTop: 14,
+                    borderTop: '1px solid #FFF3ED'
+                  }}>
+                    <p style={{ margin: 0, fontSize: 12, color: '#999' }}>
+                      Menampilkan {((halamanTabel-1)*BARIS_PER_HALAMAN)+1}–
+                      {Math.min(halamanTabel*BARIS_PER_HALAMAN, filtered.length)}
+                      {' '}dari {filtered.length} kampanye
+                    </p>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <button
+                        onClick={() => setHalamanTabel(p => Math.max(1, p-1))}
+                        disabled={halamanTabel === 1}
+                        style={{
+                          padding: '6px 14px', borderRadius: 8, fontSize: 12,
+                          border: '1px solid #FFE0CC',
+                          background: halamanTabel === 1 ? '#FFF8F5' : '#fff',
+                          color: halamanTabel === 1 ? '#FFB899' : '#FF6B35',
+                          cursor: halamanTabel === 1 ? 'default' : 'pointer',
+                          fontWeight: 500,
+                        }}>
+                        ← Prev
+                      </button>
+                      {Array.from({ length: totalHalaman }, (_, i) => i + 1)
+                        .filter(p => {
+                          if (totalHalaman <= 5) return true
+                          if (p === 1 || p === totalHalaman) return true
+                          if (Math.abs(p - halamanTabel) <= 1) return true
+                          return false
+                        })
+                        .reduce((acc, p, idx, arr) => {
+                          if (idx > 0 && p - arr[idx-1] > 1) {
+                            acc.push('...')
+                          }
+                          acc.push(p)
+                          return acc
+                        }, [])
+                        .map((p, idx) => p === '...' ? (
+                          <span key={'e'+idx} style={{
+                            fontSize: 12, color: '#FFB899', padding: '0 4px'
+                          }}>...</span>
+                        ) : (
+                          <button key={p} onClick={() => setHalamanTabel(p)}
+                            style={{
+                              padding: '6px 10px', borderRadius: 8, fontSize: 12,
+                              border: '1px solid',
+                              borderColor: halamanTabel === p ? '#FF6B35' : '#FFE0CC',
+                              background: halamanTabel === p
+                                ? 'linear-gradient(135deg, #FF6B35, #FF8C00)' : '#fff',
+                              color: halamanTabel === p ? '#fff' : '#FF6B35',
+                              fontWeight: halamanTabel === p ? 600 : 400,
+                              cursor: 'pointer',
+                              minWidth: 32,
+                            }}>
+                            {p}
+                          </button>
+                        ))
+                      }
+                      <button
+                        onClick={() => setHalamanTabel(p => Math.min(totalHalaman, p+1))}
+                        disabled={halamanTabel === totalHalaman}
+                        style={{
+                          padding: '6px 14px', borderRadius: 8, fontSize: 12,
+                          border: '1px solid #FFE0CC',
+                          background: halamanTabel === totalHalaman ? '#FFF8F5' : '#fff',
+                          color: halamanTabel === totalHalaman ? '#FFB899' : '#FF6B35',
+                          cursor: halamanTabel === totalHalaman ? 'default' : 'pointer',
+                          fontWeight: 500,
+                        }}>
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
