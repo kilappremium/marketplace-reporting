@@ -221,7 +221,7 @@ export default function Sidebar({ collapsed, setCollapsed, activePlatform, setAc
                         return (
                           <Link
                             key={sub.key}
-                            href="/ads"
+                            href={`/ads?platform=${sub.key}`}
                             style={{ textDecoration: 'none' }}
                             onClick={() => setActivePlatform && setActivePlatform(sub.key)}>
                             <div style={{
