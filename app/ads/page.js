@@ -200,10 +200,32 @@ export default function AdsPage() {
   const BARIS_PER_HALAMAN = 10
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const platform = params.get('platform')
-    if (platform && ['shopee','tiktok','meta'].includes(platform)) {
-      setActiveTab(platform)
+    function handleUrlChange() {
+      const params = new URLSearchParams(window.location.search)
+      const platform = params.get('platform')
+      if (platform && ['shopee','tiktok','meta'].includes(platform)) {
+        setActiveTab(platform)
+        setHalamanTabel(1)
+      }
+    }
+
+    // Jalankan saat pertama kali
+    handleUrlChange()
+
+    // Listen perubahan URL (popstate = back/forward)
+    window.addEventListener('popstate', handleUrlChange)
+
+    // Next.js pakai pushState saat navigasi Link
+    // Override pushState agar bisa dideteksi
+    const originalPushState = window.history.pushState
+    window.history.pushState = function(...args) {
+      originalPushState.apply(this, args)
+      handleUrlChange()
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange)
+      window.history.pushState = originalPushState
     }
   }, [])
 
