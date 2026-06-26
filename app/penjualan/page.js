@@ -62,6 +62,13 @@ export default function DashboardPage() {
   const [prevLive, setPrevLive]                 = useState([])
   const [grafikData, setGrafikData]             = useState([])
 
+  const [filterStart, setFilterStart] = useState('')
+  const [filterEnd, setFilterEnd] = useState('')
+  const [comparePeriod, setComparePeriod] = useState({ from:'', to:'' })
+  const [allRawAffiliate, setAllRawAffiliate] = useState([])
+  const [allRawAds, setAllRawAds] = useState({ shopee:[], tiktok:[], meta:[] })
+  const [allRawLive, setAllRawLive] = useState([])
+
   const [showFormPenjualan, setShowFormPenjualan] = useState(false)
   const [formPenjualan, setFormPenjualan]         = useState(EMPTY_PENJUALAN)
   const [savingPenjualan, setSavingPenjualan]     = useState(false)
@@ -71,7 +78,68 @@ export default function DashboardPage() {
   const thisWeek = getWeekRange(0)
   const lastWeek = getWeekRange(1)
 
+  function filterByPeriod(arr) {
+    if (filterStart && filterEnd) {
+      return arr.filter(r => r.tanggal >= filterStart && r.tanggal <= filterEnd)
+    }
+    return arr.filter(r => r.tanggal >= thisWeek.from && r.tanggal <= thisWeek.to)
+  }
+
+  function filterComparePeriod(arr) {
+    if (filterStart && filterEnd) {
+      const start = new Date(filterStart)
+      const end = new Date(filterEnd)
+      const durasi = Math.round((end - start) / (1000*60*60*24)) + 1
+      const prevEnd = new Date(start)
+      prevEnd.setDate(prevEnd.getDate() - 1)
+      const prevStart = new Date(prevEnd)
+      prevStart.setDate(prevStart.getDate() - durasi + 1)
+      const prevStartStr = prevStart.toISOString().split('T')[0]
+      const prevEndStr = prevEnd.toISOString().split('T')[0]
+      return arr.filter(r => r.tanggal >= prevStartStr && r.tanggal <= prevEndStr)
+    }
+    return arr.filter(r => r.tanggal >= lastWeek.from && r.tanggal <= lastWeek.to)
+  }
+
+  const periodeLabel = filterStart && filterEnd
+    ? `${filterStart} s/d ${filterEnd}`
+    : `Minggu ini (${thisWeek.from} s/d ${thisWeek.to})`
+
+  const compareLabel = (() => {
+    if (filterStart && filterEnd) {
+      const start = new Date(filterStart)
+      const end = new Date(filterEnd)
+      const durasi = Math.round((end - start)/(1000*60*60*24)) + 1
+      const prevEnd = new Date(start)
+      prevEnd.setDate(prevEnd.getDate() - 1)
+      const prevStart = new Date(prevEnd)
+      prevStart.setDate(prevStart.getDate() - durasi + 1)
+      return `${prevStart.toISOString().split('T')[0]} s/d ${prevEnd.toISOString().split('T')[0]}`
+    }
+    return `Minggu lalu (${lastWeek.from} s/d ${lastWeek.to})`
+  })()
+
   useEffect(() => { fetchAll(); fetchDataPenjualan() }, [])
+
+  useEffect(() => {
+    if (allRawAffiliate.length === 0 &&
+        allRawLive.length === 0) return
+
+    setWeeklyAffiliate(filterByPeriod(allRawAffiliate))
+    setPrevWeekAffiliate(filterComparePeriod(allRawAffiliate))
+    setWeeklyLive(filterByPeriod(allRawLive))
+    setPrevLive(filterComparePeriod(allRawLive))
+    setWeeklyAds({
+      shopee: filterByPeriod(allRawAds.shopee),
+      tiktok: filterByPeriod(allRawAds.tiktok),
+      meta: filterByPeriod(allRawAds.meta),
+    })
+    setPrevAds({
+      shopee: filterComparePeriod(allRawAds.shopee),
+      tiktok: filterComparePeriod(allRawAds.tiktok),
+      meta: filterComparePeriod(allRawAds.meta),
+    })
+  }, [filterStart, filterEnd, allRawAffiliate, allRawLive, allRawAds])
 
   async function fetchAll() {
     setLoading(true)
@@ -106,24 +174,13 @@ export default function DashboardPage() {
       meta:   metaRes.data   || [],
     }
 
-    // Filter minggu ini & minggu lalu
+    setAllRawAffiliate(allAff)
+    setAllRawAds(allAds)
+    setAllRawLive(allLive)
+
+    // Filter minggu ini & minggu lalu (untuk grafik 8 minggu)
     const filterWeek = (arr, range) =>
       arr.filter(r => r.tanggal >= range.from && r.tanggal <= range.to)
-
-    setWeeklyAffiliate(filterWeek(allAff, thisWeek))
-    setPrevWeekAffiliate(filterWeek(allAff, lastWeek))
-    setWeeklyLive(filterWeek(allLive, thisWeek))
-    setPrevLive(filterWeek(allLive, lastWeek))
-
-    const filterAdsWeek = (ads, range) => ({
-      shopee: filterWeek(ads.shopee, range),
-      tiktok: filterWeek(ads.tiktok, range),
-      meta:   filterWeek(ads.meta, range),
-    })
-    setWeeklyAds(filterAdsWeek(allAds, thisWeek))
-    setPrevAds(filterAdsWeek(allAds, lastWeek))
-
-    // Grafik tren 8 minggu terakhir
     const grafikWeeks = Array.from({length:8}, (_,i) => {
       const range = getWeekRange(7 - i)
       const d = new Date(range.from)
@@ -338,15 +395,19 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
 
   // ─── Komponen GrowthBadge ─────────────────────────────
   function GrowthBadge({ value }) {
-    const up = value >= 0
+    const up = Number(value) >= 0
     return (
-      <span style={{
-        fontSize: 11, fontWeight: 600, padding: '2px 8px',
-        borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 3,
-        background: up ? '#DCFCE7' : '#FEE2E2',
-        color: up ? '#166534' : '#991B1B',
-      }}>
-        {up ? '▲' : '▼'} {Math.abs(value).toFixed(1)}% vs minggu lalu
+      <span title={`vs ${compareLabel}`}
+        style={{ fontSize:11, fontWeight:600,
+          padding:'2px 8px', borderRadius:20,
+          background: up ? '#DCFCE7' : '#FEE2E2',
+          color: up ? '#166534' : '#991B1B',
+          display:'inline-flex', alignItems:'center', gap:3,
+          cursor:'help' }}>
+        {up ? '▲' : '▼'} {Math.abs(Number(value)).toFixed(1)}%
+        <span style={{ fontSize:10, opacity:0.8 }}>
+          vs periode sebelumnya
+        </span>
       </span>
     )
   }
@@ -404,7 +465,7 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
             Dashboard Utama
           </p>
           <p style={{ margin: 0, fontSize: 13, color: '#999' }}>
-            📅 {today} · Minggu {thisWeek.from} s/d {thisWeek.to}
+            📅 {today} · {periodeLabel}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -423,6 +484,47 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
             🔄 Auto-refresh setiap buka halaman
           </div>
         </div>
+      </div>
+
+      <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+        borderRadius:12, padding:'14px 20px', marginBottom:20,
+        boxShadow:'0 1px 4px rgba(255,100,0,0.06)',
+        display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+        <span style={{ fontSize:12, fontWeight:600, color:'#FF8C00',
+          whiteSpace:'nowrap' }}>Filter periode:</span>
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+          <input type="date" value={filterStart}
+            onChange={e => setFilterStart(e.target.value)}
+            style={{ padding:'7px 12px', borderRadius:8,
+              border:'1px solid #FFD4B8', fontSize:13,
+              color:'#1A1A1A', background:'#fff' }} />
+          <span style={{ fontSize:13, color:'#999' }}>s/d</span>
+          <input type="date" value={filterEnd}
+            onChange={e => setFilterEnd(e.target.value)}
+            style={{ padding:'7px 12px', borderRadius:8,
+              border:'1px solid #FFD4B8', fontSize:13,
+              color:'#1A1A1A', background:'#fff' }} />
+        </div>
+        {(filterStart && filterEnd) && (
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:12, color:'#FF6B35',
+              background:'#FFF3ED', padding:'4px 10px',
+              borderRadius:20, whiteSpace:'nowrap' }}>
+              {filterStart} → {filterEnd}
+            </span>
+            <button onClick={() => { setFilterStart(''); setFilterEnd('') }}
+              style={{ fontSize:12, padding:'5px 12px', borderRadius:8,
+                border:'1px solid #FFE0CC', background:'#fff',
+                color:'#999', cursor:'pointer' }}>
+              Reset
+            </button>
+          </div>
+        )}
+        {(!filterStart || !filterEnd) && (
+          <span style={{ fontSize:11, color:'#FFB899' }}>
+            * Default: membandingkan minggu ini vs minggu lalu
+          </span>
+        )}
       </div>
 
       {showFormPenjualan && (
@@ -587,7 +689,7 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
             gap: 14, marginBottom: 24,
           }}>
             <MetricCard
-              label="Total GMV Minggu Ini"
+              label={filterStart && filterEnd ? `Total GMV (${periodeLabel})` : 'Total GMV Minggu Ini'}
               value={fmtRp(totalGmv)}
               growth={growthGmv}
               highlight={true}
