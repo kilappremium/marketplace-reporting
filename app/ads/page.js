@@ -213,6 +213,8 @@ export default function AdsPage() {
   const [halamanTabel, setHalamanTabel] = useState(1)
   const [grafikMingguan, setGrafikMingguan] = useState([])
   const [anomaliAds, setAnomaliAds] = useState([])
+  const [filterStart, setFilterStart] = useState('')
+  const [filterEnd, setFilterEnd] = useState('')
   const BARIS_PER_HALAMAN = 10
 
   useEffect(() => {
@@ -221,6 +223,8 @@ export default function AdsPage() {
       const platform = params.get('platform')
       if (platform && ['shopee','tiktok','meta'].includes(platform)) {
         setActiveTab(platform)
+        setFilterStart('')
+        setFilterEnd('')
         setHalamanTabel(1)
       }
     }
@@ -411,7 +415,27 @@ export default function AdsPage() {
   }
 
   const rows = data[activeTab] || []
-  const filtered = rows
+  const filtered = (() => {
+    const all = data[activeTab] || []
+    let base = all
+
+    if (activeTab === 'weekly' && filterMinggu !== 'semua') {
+      base = all.filter(r => {
+        if (!r.tanggal) return false
+        const rDate = new Date(r.tanggal)
+        const fDate = new Date(filterMinggu)
+        return rDate.getFullYear() === fDate.getFullYear() &&
+               rDate.getMonth() === fDate.getMonth() &&
+               rDate.getDate() === fDate.getDate()
+      })
+    }
+
+    if (filterStart && filterEnd) {
+      return base.filter(r => r.tanggal >= filterStart && r.tanggal <= filterEnd)
+    }
+
+    return base
+  })()
   const totalHalaman = Math.ceil(filtered.length / BARIS_PER_HALAMAN)
   const rowsPaginated = filtered.slice(
     (halamanTabel - 1) * BARIS_PER_HALAMAN,
@@ -419,34 +443,58 @@ export default function AdsPage() {
   )
   const cfg  = PLATFORM_CONFIG[activeTab]
 
+  const prevFiltered = (() => {
+    const all = data[activeTab] || []
+    if (filterStart && filterEnd) {
+      const start = new Date(filterStart)
+      const end = new Date(filterEnd)
+      const durasi = Math.round((end-start)/(1000*60*60*24))+1
+      const prevEnd = new Date(start)
+      prevEnd.setDate(prevEnd.getDate()-1)
+      const prevStart = new Date(prevEnd)
+      prevStart.setDate(prevStart.getDate()-durasi+1)
+      return all.filter(r =>
+        r.tanggal >= prevStart.toISOString().split('T')[0] &&
+        r.tanggal <= prevEnd.toISOString().split('T')[0])
+    }
+    const [year, month] = bulan.split('-').map(Number)
+    const prevMonth = month === 1
+      ? `${year-1}-12` : `${year}-${String(month-1).padStart(2,'0')}`
+    return all.filter(r => r.tanggal && r.tanggal.startsWith(prevMonth))
+  })()
+
+  const sumF = (arr, f) => arr.reduce((a,b)=>a+(Number(b[f])||0),0)
+  const growthPct = (curr, prev) => prev > 0
+    ? ((curr-prev)/prev*100).toFixed(1) : '0'
+
   // summary cards per active tab
   const summaryCards = {
     shopee: [
-      { label: 'Total biaya iklan', value: fmtRp(sum(rows, 'biaya_iklan')) },
-      { label: 'Total omzet', value: fmtRp(sum(rows, 'omzet')) },
-      { label: 'ROI rata-rata', value: fmtX(avg(rows, 'roi')) },
-      { label: 'Total pesanan', value: fmt(sum(rows, 'pesanan')) },
-      { label: 'Total impresi', value: fmt(sum(rows, 'impresi')) },
-      { label: 'Total klik', value: fmt(sum(rows, 'klik')) },
-      { label: 'Total ATC', value: fmt(sum(rows, 'atc')) },
-      { label: 'AOV rata-rata', value: fmtRp(avg(rows, 'aov')) },
+      { label: 'Total biaya iklan', value: fmtRp(sumF(filtered, 'biaya_iklan')), curr: sumF(filtered, 'biaya_iklan'), prev: sumF(prevFiltered, 'biaya_iklan') },
+      { label: 'Total omzet', value: fmtRp(sumF(filtered, 'omzet')), curr: sumF(filtered, 'omzet'), prev: sumF(prevFiltered, 'omzet'), highlight: true },
+      { label: 'ROI rata-rata', value: fmtX(avg(filtered, 'roi')), curr: Number(avg(filtered, 'roi')), prev: Number(avg(prevFiltered, 'roi')) },
+      { label: 'Total pesanan', value: fmt(sumF(filtered, 'pesanan')), curr: sumF(filtered, 'pesanan'), prev: sumF(prevFiltered, 'pesanan') },
+      { label: 'Total impresi', value: fmt(sumF(filtered, 'impresi')), curr: sumF(filtered, 'impresi'), prev: sumF(prevFiltered, 'impresi') },
+      { label: 'Total klik', value: fmt(sumF(filtered, 'klik')), curr: sumF(filtered, 'klik'), prev: sumF(prevFiltered, 'klik') },
+      { label: 'Total ATC', value: fmt(sumF(filtered, 'atc')), curr: sumF(filtered, 'atc'), prev: sumF(prevFiltered, 'atc') },
+      { label: 'AOV rata-rata', value: fmtRp(avg(filtered, 'aov')), curr: Number(avg(filtered, 'aov')), prev: Number(avg(prevFiltered, 'aov')) },
     ],
     tiktok: [
-      { label: 'Total biaya iklan', value: fmtRp(sum(rows, 'biaya_iklan')) },
-      { label: 'Total omzet', value: fmtRp(sum(rows, 'omzet')) },
-      { label: 'ROI rata-rata', value: fmtX(avg(rows, 'roi')) },
-      { label: 'Total pesanan', value: fmt(sum(rows, 'pesanan')) },
-      { label: 'CPA rata-rata', value: fmtRp(avg(rows, 'cpa')) },
+      { label: 'Total biaya iklan', value: fmtRp(sumF(filtered, 'biaya_iklan')), curr: sumF(filtered, 'biaya_iklan'), prev: sumF(prevFiltered, 'biaya_iklan') },
+      { label: 'Total omzet', value: fmtRp(sumF(filtered, 'omzet')), curr: sumF(filtered, 'omzet'), prev: sumF(prevFiltered, 'omzet'), highlight: true },
+      { label: 'ROI rata-rata', value: fmtX(avg(filtered, 'roi')), curr: Number(avg(filtered, 'roi')), prev: Number(avg(prevFiltered, 'roi')) },
+      { label: 'Total pesanan', value: fmt(sumF(filtered, 'pesanan')), curr: sumF(filtered, 'pesanan'), prev: sumF(prevFiltered, 'pesanan') },
+      { label: 'CPA rata-rata', value: fmtRp(avg(filtered, 'cpa')), curr: Number(avg(filtered, 'cpa')), prev: Number(avg(prevFiltered, 'cpa')) },
     ],
     meta: [
-      { label: 'Total biaya iklan', value: fmtRp(sum(rows, 'biaya_iklan')) },
-      { label: 'Total omzet', value: fmtRp(sum(rows, 'omzet')) },
-      { label: 'ROI rata-rata', value: fmtX(avg(rows, 'roi')) },
-      { label: 'Total pesanan', value: fmt(sum(rows, 'pesanan')) },
-      { label: 'Total impresi', value: fmt(sum(rows, 'impresi')) },
-      { label: 'Total klik', value: fmt(sum(rows, 'klik')) },
-      { label: 'Total ATC', value: fmt(sum(rows, 'atc')) },
-      { label: 'AOV rata-rata', value: fmtRp(avg(rows, 'aov')) },
+      { label: 'Total biaya iklan', value: fmtRp(sumF(filtered, 'biaya_iklan')), curr: sumF(filtered, 'biaya_iklan'), prev: sumF(prevFiltered, 'biaya_iklan') },
+      { label: 'Total omzet', value: fmtRp(sumF(filtered, 'omzet')), curr: sumF(filtered, 'omzet'), prev: sumF(prevFiltered, 'omzet'), highlight: true },
+      { label: 'ROI rata-rata', value: fmtX(avg(filtered, 'roi')), curr: Number(avg(filtered, 'roi')), prev: Number(avg(prevFiltered, 'roi')) },
+      { label: 'Total pesanan', value: fmt(sumF(filtered, 'pesanan')), curr: sumF(filtered, 'pesanan'), prev: sumF(prevFiltered, 'pesanan') },
+      { label: 'Total impresi', value: fmt(sumF(filtered, 'impresi')), curr: sumF(filtered, 'impresi'), prev: sumF(prevFiltered, 'impresi') },
+      { label: 'Total klik', value: fmt(sumF(filtered, 'klik')), curr: sumF(filtered, 'klik'), prev: sumF(prevFiltered, 'klik') },
+      { label: 'Total ATC', value: fmt(sumF(filtered, 'atc')), curr: sumF(filtered, 'atc'), prev: sumF(prevFiltered, 'atc') },
+      { label: 'AOV rata-rata', value: fmtRp(avg(filtered, 'aov')), curr: Number(avg(filtered, 'aov')), prev: Number(avg(prevFiltered, 'aov')) },
     ],
   }
 
@@ -656,6 +704,45 @@ export default function AdsPage() {
         </div>
       </div>
 
+      <div style={{ display:'flex', alignItems:'center',
+        gap:8, marginBottom:20, flexWrap:'wrap' }}>
+        <span style={{ fontSize:12, color:'#999',
+          whiteSpace:'nowrap' }}>Periode:</span>
+        <input type="date" value={filterStart}
+          onChange={e => setFilterStart(e.target.value)}
+          style={{ padding:'6px 10px', borderRadius:8,
+            border:'1px solid #FFD4B8', fontSize:12,
+            color:'#1A1A1A', background:'#fff', outline:'none' }} />
+        <span style={{ fontSize:12, color:'#ccc' }}>—</span>
+        <input type="date" value={filterEnd}
+          onChange={e => setFilterEnd(e.target.value)}
+          style={{ padding:'6px 10px', borderRadius:8,
+            border:'1px solid #FFD4B8', fontSize:12,
+            color:'#1A1A1A', background:'#fff', outline:'none' }} />
+        {(filterStart && filterEnd) && (
+          <button onClick={() => { setFilterStart(''); setFilterEnd('') }}
+            style={{ padding:'5px 10px', borderRadius:8, fontSize:11,
+              border:'1px solid #FFE0CC', background:'#FFF3ED',
+              color:'#FF6B35', cursor:'pointer' }}>
+            ✕ Reset
+          </button>
+        )}
+        {(filterStart && filterEnd) && (
+          <span style={{ fontSize:11, color:'#FFB899', whiteSpace:'nowrap' }}>
+            vs {(() => {
+              const start = new Date(filterStart)
+              const end = new Date(filterEnd)
+              const durasi = Math.round((end-start)/(1000*60*60*24))+1
+              const prevEnd = new Date(start)
+              prevEnd.setDate(prevEnd.getDate()-1)
+              const prevStart = new Date(prevEnd)
+              prevStart.setDate(prevStart.getDate()-durasi+1)
+              return prevStart.toISOString().split('T')[0]+' s/d '+prevEnd.toISOString().split('T')[0]
+            })()}
+          </span>
+        )}
+      </div>
+
       {/* ANOMALI ALERT */}
       {anomaliAds.length > 0 && (
         <div style={{ background:'#FFF8F0',
@@ -674,76 +761,41 @@ export default function AdsPage() {
       )}
 
       {/* SUMMARY CARDS MINGGU INI */}
-      {(() => {
-        const thisWeek = getWeekRange(0)
-        const lastWeek = getWeekRange(1)
-        const activeRows = filtered
-        const thisRows = activeRows.filter(r =>
-          r.tanggal >= thisWeek.from && r.tanggal <= thisWeek.to)
-        const prevRows = activeRows.filter(r =>
-          r.tanggal >= lastWeek.from && r.tanggal <= lastWeek.to)
-
-        const sumF = (arr, f) => arr.reduce((a,b)=>a+(Number(b[f])||0),0)
-        const growth = (curr, prev) => prev > 0
-          ? ((curr-prev)/prev*100).toFixed(1) : '0'
-
-        const thisOmzet = sumF(thisRows,'omzet')
-        const prevOmzet = sumF(prevRows,'omzet')
-        const thisBiaya = sumF(thisRows,'biaya_iklan')
-        const prevBiaya = sumF(prevRows,'biaya_iklan')
-        const thisRoas = thisBiaya > 0 ? thisOmzet/thisBiaya : 0
-        const prevRoas = prevBiaya > 0 ? prevOmzet/prevBiaya : 0
-        const thisPesanan = sumF(thisRows,'konversi')
-        const prevPesanan = sumF(prevRows,'konversi')
-
-        const cards = activeTab === 'shopee' ? [
-          { label:'Omzet Minggu Ini', value:'Rp '+thisOmzet.toLocaleString('id-ID'), growth:growth(thisOmzet,prevOmzet), highlight:true },
-          { label:'Biaya Iklan', value:'Rp '+thisBiaya.toLocaleString('id-ID'), growth:growth(thisBiaya,prevBiaya) },
-          { label:'ROAS', value:thisRoas.toFixed(2)+'x', growth:growth(thisRoas,prevRoas) },
-          { label:'Total Pesanan', value:thisPesanan.toLocaleString('id-ID'), growth:growth(thisPesanan,prevPesanan) },
-          { label:'Total Klik', value:sumF(thisRows,'klik').toLocaleString('id-ID'), growth:growth(sumF(thisRows,'klik'),sumF(prevRows,'klik')) },
-          { label:'Total Impresi', value:sumF(thisRows,'impresi').toLocaleString('id-ID'), growth:growth(sumF(thisRows,'impresi'),sumF(prevRows,'impresi')) },
-        ] : activeTab === 'tiktok' ? [
-          { label:'Omzet Minggu Ini', value:'Rp '+thisOmzet.toLocaleString('id-ID'), growth:growth(thisOmzet,prevOmzet), highlight:true },
-          { label:'Biaya Iklan', value:'Rp '+thisBiaya.toLocaleString('id-ID'), growth:growth(thisBiaya,prevBiaya) },
-          { label:'ROAS', value:thisRoas.toFixed(2)+'x', growth:growth(thisRoas,prevRoas) },
-          { label:'Total Pesanan', value:thisPesanan.toLocaleString('id-ID'), growth:growth(thisPesanan,prevPesanan) },
-        ] : [
-          { label:'Omzet Minggu Ini', value:'Rp '+thisOmzet.toLocaleString('id-ID'), growth:growth(thisOmzet,prevOmzet), highlight:true },
-          { label:'Biaya Iklan', value:'Rp '+thisBiaya.toLocaleString('id-ID'), growth:growth(thisBiaya,prevBiaya) },
-          { label:'ROAS', value:thisRoas.toFixed(2)+'x', growth:growth(thisRoas,prevRoas) },
-          { label:'Total Pesanan', value:thisPesanan.toLocaleString('id-ID'), growth:growth(thisPesanan,prevPesanan) },
-          { label:'Total Klik', value:sumF(thisRows,'klik').toLocaleString('id-ID'), growth:growth(sumF(thisRows,'klik'),sumF(prevRows,'klik')) },
-          { label:'Total Impresi', value:sumF(thisRows,'impresi').toLocaleString('id-ID'), growth:growth(sumF(thisRows,'impresi'),sumF(prevRows,'impresi')) },
-        ]
-
-        return (
-          <div style={{ display:'grid',
-            gridTemplateColumns:'repeat(auto-fit, minmax(180px,1fr))',
-            gap:12, marginBottom:20 }}>
-            {cards.map(m => (
-              <div key={m.label} style={{
-                background: m.highlight
-                  ? 'linear-gradient(135deg,#FF6B35,#FF8C00)' : '#fff',
-                border: m.highlight ? 'none' : '1px solid #FFE0CC',
-                borderRadius:12, padding:'16px 18px',
-                boxShadow:'0 2px 8px rgba(255,100,0,0.08)',
+      <div style={{ display:'grid',
+        gridTemplateColumns:'repeat(auto-fit, minmax(180px,1fr))',
+        gap:12, marginBottom:20 }}>
+        {(summaryCards[activeTab] || []).map(m => (
+          <div key={m.label} style={{
+            background: m.highlight
+              ? 'linear-gradient(135deg,#FF6B35,#FF8C00)' : '#fff',
+            border: m.highlight ? 'none' : '1px solid #FFE0CC',
+            borderRadius:12, padding:'16px 18px',
+            boxShadow:'0 2px 8px rgba(255,100,0,0.08)',
+          }}>
+            <p style={{ margin:'0 0 6px', fontSize:12, fontWeight:500,
+              color: m.highlight ? 'rgba(255,255,255,0.8)' : '#999' }}>
+              {m.label}
+            </p>
+            <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
+              color: m.highlight ? '#fff' : '#1A1A1A',
+              lineHeight:1.2 }}>
+              {m.value}
+            </p>
+            <p style={{ margin:'4px 0 0', fontSize:11 }}>
+              <span style={{
+                color: Number(growthPct(m.curr, m.prev)) >= 0 ? '#166534' : '#991B1B',
+                fontWeight:600
               }}>
-                <p style={{ margin:'0 0 6px', fontSize:12, fontWeight:500,
-                  color: m.highlight ? 'rgba(255,255,255,0.8)' : '#999' }}>
-                  {m.label}
-                </p>
-                <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
-                  color: m.highlight ? '#fff' : '#1A1A1A',
-                  lineHeight:1.2 }}>
-                  {m.value}
-                </p>
-                <GrowthBadge value={m.growth} />
-              </div>
-            ))}
+                {Number(growthPct(m.curr, m.prev)) >= 0 ? '▲' : '▼'}
+                {Math.abs(Number(growthPct(m.curr, m.prev)))}%
+              </span>
+              <span style={{ color: m.highlight ? 'rgba(255,255,255,0.7)' : '#999', marginLeft:4 }}>
+                vs periode sebelumnya
+              </span>
+            </p>
           </div>
-        )
-      })()}
+        ))}
+      </div>
 
       {/* GRAFIK TREN 8 MINGGU */}
       {grafikMingguan.length > 0 && (
@@ -809,123 +861,6 @@ export default function AdsPage() {
         <p style={{ color: '#9CA3AF', fontSize: 14 }}>Memuat data...</p>
       ) : (
         <>
-          {/* ── GRAFIK TREN HARIAN ── */}
-          {(() => {
-            const rowsFiltered = activeTab === 'shopee' && filterJenis !== 'semua'
-              ? rows.filter(r => r.nama_kampanye === filterJenis)
-              : rows
-
-            const grafik = [...rowsFiltered]
-              .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
-              .map(row => ({
-                tgl: row.tanggal.slice(8),
-                omzet: Number(row.omzet) || 0,
-                biaya: Number(row.biaya_iklan) || 0,
-              }))
-
-            if (grafik.length === 0) return null
-
-            const fmtRpAxis = (v) => {
-              if (v >= 1000000) return 'Rp ' + (v/1000000).toFixed(1) + 'jt'
-              if (v >= 1000) return 'Rp ' + (v/1000).toFixed(0) + 'rb'
-              return 'Rp ' + v
-            }
-
-            return (
-              <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <div>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>Tren harian — {cfg.label}</p>
-                    <p style={{ margin: 0, fontSize: 12, color: '#6B7280' }}>Omzet vs Biaya Iklan per hari</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    {activeTab === 'shopee' && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 12, color: '#6B7280' }}>Filter:</span>
-                        {['semua', 'Iklan Toko', 'Iklan Produk'].map(j => (
-                          <button key={j} onClick={() => setFilterJenis(j)}
-                            style={{
-                              padding: '5px 12px', borderRadius: 6, fontSize: 12,
-                              cursor: 'pointer', border: '1px solid',
-                              borderColor: filterJenis === j ? '#16A34A' : '#E5E7EB',
-                              background: filterJenis === j ? '#DCFCE7' : '#fff',
-                              color: filterJenis === j ? '#166534' : '#6B7280',
-                              fontWeight: filterJenis === j ? 500 : 400
-                            }}>
-                            {j === 'semua' ? 'Semua' : j}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ width: 20, height: 2, background: '#16A34A', display: 'inline-block', borderRadius: 2 }}></span>
-                      <span style={{ color: '#6B7280' }}>Omzet</span>
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ width: 20, height: 2, background: '#DC2626', display: 'inline-block', borderRadius: 2 }}></span>
-                      <span style={{ color: '#6B7280' }}>Biaya Iklan</span>
-                    </span>
-                    </div>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={grafik} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                    <XAxis
-                      dataKey="tgl"
-                      tick={{ fontSize: 11, fill: '#9CA3AF' }}
-                      tickLine={false}
-                      axisLine={{ stroke: '#E5E7EB' }}
-                      label={{ value: 'Tanggal', position: 'insideBottom', offset: -2, fontSize: 11, fill: '#9CA3AF' }}
-                    />
-                    <YAxis
-                      tickFormatter={fmtRpAxis}
-                      tick={{ fontSize: 11, fill: '#9CA3AF' }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={70}
-                    />
-                    <Tooltip
-                      formatter={(value, name) => [
-                        'Rp ' + Number(value).toLocaleString('id-ID'),
-                        name === 'omzet' ? 'Omzet' : 'Biaya Iklan'
-                      ]}
-                      labelFormatter={(label) => 'Tanggal: ' + label}
-                      contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E5E7EB', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="omzet"
-                      stroke="#16A34A"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: '#16A34A', strokeWidth: 0 }}
-                      activeDot={{ r: 5 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="biaya"
-                      stroke="#DC2626"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: '#DC2626', strokeWidth: 0 }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )
-          })()}
-
-          {/* ── SUMMARY CARDS ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: 20 }}>
-            {(summaryCards[activeTab] || []).map(m => (
-              <div key={m.label} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#6B7280', fontWeight: 500 }}>{m.label}</p>
-                <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111' }}>{m.value}</p>
-              </div>
-            ))}
-          </div>
-
           {/* ── TABEL DATA ── */}
           <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
