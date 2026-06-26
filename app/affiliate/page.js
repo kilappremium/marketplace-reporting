@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
+  Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
 
 // ─── Format helpers ───────────────────────────────────────
@@ -197,8 +197,6 @@ export default function AffiliatePage() {
   const [filterMinggu, setFilterMinggu] = useState('semua')
   const [filterStartDate, setFilterStartDate] = useState('')
   const [filterEndDate, setFilterEndDate] = useState('')
-  const [filterStart, setFilterStart] = useState('')
-  const [filterEnd, setFilterEnd] = useState('')
   const [halamanTabel, setHalamanTabel] = useState(1)
   const BARIS_PER_HALAMAN = 5
   const [biayaTambahanList, setBiayaTambahanList] = useState([
@@ -216,7 +214,7 @@ export default function AffiliatePage() {
     const paidFrom = tahunIni + '-01-01'
 
     const [r1, r2, r3] = await Promise.all([
-      supabase.from('affiliate_monthly').select('*').order('tanggal', { ascending: false }),
+      supabase.from('affiliate_monthly').select('*').gte('tanggal', `${tahunIni}-01-01`).order('tanggal', { ascending: false }),
       supabase
         .from('affiliate_weekly')
         .select('*')
@@ -251,7 +249,8 @@ export default function AffiliatePage() {
       if (skipFilter) return arr || []
       return (arr || []).filter(r => r.tanggal && r.tanggal.startsWith(bulan))
     }
-    const monthly = filterBulan(r1.data)
+    const monthly = (r1.data || []).sort((a,b) =>
+      b.tanggal.localeCompare(a.tanggal))
     const weekly  = filterBulan(r2.data, true)
     setData({ monthly, weekly, paid: filterBulan(r3.data, true) })
 
@@ -423,10 +422,6 @@ export default function AffiliatePage() {
       result = all
     }
 
-    if (filterStart && filterEnd) {
-      return result.filter(r =>
-        r.tanggal >= filterStart && r.tanggal <= filterEnd)
-    }
     return result
   })()
   const totalHalaman = Math.ceil(rows.length / BARIS_PER_HALAMAN)
@@ -439,18 +434,6 @@ export default function AffiliatePage() {
 
   const prevRows = (() => {
     const all = data[activeTab] || []
-    if (filterStart && filterEnd) {
-      const start = new Date(filterStart)
-      const end = new Date(filterEnd)
-      const durasi = Math.round((end-start)/(1000*60*60*24))+1
-      const prevEnd = new Date(start)
-      prevEnd.setDate(prevEnd.getDate()-1)
-      const prevStart = new Date(prevEnd)
-      prevStart.setDate(prevStart.getDate()-durasi+1)
-      return all.filter(r =>
-        r.tanggal >= prevStart.toISOString().split('T')[0] &&
-        r.tanggal <= prevEnd.toISOString().split('T')[0])
-    }
     if (activeTab === 'monthly') {
       const [y, m] = bulan.split('-').map(Number)
       const prev = m === 1
@@ -885,8 +868,10 @@ export default function AffiliatePage() {
           <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Monthly · Weekly · Paid Partnership · {bulan}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input type="month" value={bulan} onChange={e => setBulan(e.target.value)}
-            style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }} />
+          {activeTab !== 'monthly' && (
+            <input type="month" value={bulan} onChange={e => setBulan(e.target.value)}
+              style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }} />
+          )}
           <button onClick={() => { setShowForm(true); setForm(buildEmpty(activeTab)); setEditId(null); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
             style={{ padding: '8px 18px', borderRadius: 8, background: '#16A34A', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
             + Input data
@@ -897,50 +882,11 @@ export default function AffiliatePage() {
       {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
-          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setFilterStartDate(''); setFilterEndDate(''); setFilterStart(''); setFilterEnd(''); setHalamanTabel(1); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
+          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setFilterStartDate(''); setFilterEndDate(''); setHalamanTabel(1); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
             style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
             {pc.label}
           </button>
         ))}
-      </div>
-
-      <div style={{ display:'flex', alignItems:'center',
-        gap:8, marginBottom:20, flexWrap:'wrap' }}>
-        <span style={{ fontSize:12, color:'#999',
-          whiteSpace:'nowrap' }}>Periode:</span>
-        <input type="date" value={filterStart}
-          onChange={e => setFilterStart(e.target.value)}
-          style={{ padding:'6px 10px', borderRadius:8,
-            border:'1px solid #FFD4B8', fontSize:12,
-            color:'#1A1A1A', background:'#fff', outline:'none' }} />
-        <span style={{ fontSize:12, color:'#ccc' }}>—</span>
-        <input type="date" value={filterEnd}
-          onChange={e => setFilterEnd(e.target.value)}
-          style={{ padding:'6px 10px', borderRadius:8,
-            border:'1px solid #FFD4B8', fontSize:12,
-            color:'#1A1A1A', background:'#fff', outline:'none' }} />
-        {(filterStart && filterEnd) && (
-          <button onClick={() => { setFilterStart(''); setFilterEnd('') }}
-            style={{ padding:'5px 10px', borderRadius:8, fontSize:11,
-              border:'1px solid #FFE0CC', background:'#FFF3ED',
-              color:'#FF6B35', cursor:'pointer' }}>
-            ✕ Reset
-          </button>
-        )}
-        {(filterStart && filterEnd) && (
-          <span style={{ fontSize:11, color:'#FFB899', whiteSpace:'nowrap' }}>
-            vs {(() => {
-              const start = new Date(filterStart)
-              const end = new Date(filterEnd)
-              const durasi = Math.round((end-start)/(1000*60*60*24))+1
-              const prevEnd = new Date(start)
-              prevEnd.setDate(prevEnd.getDate()-1)
-              const prevStart = new Date(prevEnd)
-              prevStart.setDate(prevStart.getDate()-durasi+1)
-              return prevStart.toISOString().split('T')[0]+' s/d '+prevEnd.toISOString().split('T')[0]
-            })()}
-          </span>
-        )}
       </div>
 
       {loading ? (
@@ -1070,23 +1016,145 @@ export default function AffiliatePage() {
                   {m.label}
                 </p>
                 <p style={{ margin:'0 0 6px', fontSize:20, fontWeight:700,
-                  color: m.highlight?'#fff':'#1A1A1A' }}>
-                  {m.value}
+                  color: m.highlight?'#fff':'#1A1A1A',
+                  lineHeight:1.2 }}>
+                  {typeof m.value === 'object' ? m.value : m.value}
                 </p>
                 {m.growth !== null && m.growth !== undefined && (
                   <span style={{ fontSize:11, fontWeight:600,
-                    padding:'2px 8px', borderRadius:20,
+                    padding:'2px 7px', borderRadius:20,
+                    display:'inline-flex', alignItems:'center', gap:3,
                     background: Number(m.growth)>=0?'#DCFCE7':'#FEE2E2',
                     color: Number(m.growth)>=0?'#166534':'#991B1B' }}>
-                    {Number(m.growth)>=0?'▲':'▼'} {Math.abs(Number(m.growth))}%
-                    <span style={{ fontWeight:400, marginLeft:4, opacity:0.8 }}>
-                      vs periode sebelumnya
+                    {Number(m.growth)>=0?'▲':'▼'}
+                    {Math.abs(Number(m.growth))}%
+                    <span style={{ fontWeight:400, opacity:0.75, fontSize:10 }}>
+                      vs sebelumnya
                     </span>
                   </span>
                 )}
               </div>
             ))}
           </div>
+
+          {/* GRAFIK GARIS PER TAB */}
+          {(() => {
+            const fmtAxis = v => {
+              if(v>=1000000000) return (v/1000000000).toFixed(1)+'M'
+              if(v>=1000000) return (v/1000000).toFixed(0)+'jt'
+              if(v>=1000) return (v/1000).toFixed(0)+'rb'
+              return v
+            }
+
+            let grafikData = []
+            let lines = []
+            let title = ''
+
+            if (activeTab === 'monthly') {
+              const sorted = [...(data.monthly||[])].sort((a,b) =>
+                a.tanggal.localeCompare(b.tanggal))
+              grafikData = sorted.map(r => ({
+                label: r.tanggal ? r.tanggal.slice(0,7) : '-',
+                gmv: Number(r.gmv)||0,
+                cost: Number(r.cost)||0,
+                roi: Number(r.gmv)>0 && Number(r.cost)>0
+                  ? Number((r.gmv/r.cost).toFixed(2)) : 0,
+              }))
+              lines = [
+                { key:'gmv', color:'#FF6B35', label:'GMV' },
+                { key:'cost', color:'#DC2626', label:'Cost', dash:true },
+              ]
+              title = 'Tren GMV vs Cost — Monthly (semua data)'
+            }
+
+            if (activeTab === 'weekly') {
+              const sorted = [...(data.weekly||[])].sort((a,b) =>
+                a.tanggal.localeCompare(b.tanggal))
+              grafikData = sorted.map(r => {
+                const d = new Date(r.tanggal)
+                const startOfYear = new Date(d.getFullYear(),0,1)
+                const weekNum = Math.ceil(
+                  ((d-startOfYear)/86400000+startOfYear.getDay()+1)/7)
+                return {
+                  label: `W${weekNum}`,
+                  gmv: Number(r.gmv)||0,
+                  cost: Number(r.cost)||0,
+                }
+              })
+              lines = [
+                { key:'gmv', color:'#FF6B35', label:'GMV' },
+                { key:'cost', color:'#DC2626', label:'Cost', dash:true },
+              ]
+              title = 'Tren GMV vs Cost — Weekly'
+            }
+
+            if (activeTab === 'paid') {
+              const grouped = {}
+              ;(data.paid||[]).forEach(r => {
+                const tgl = r.tanggal || '-'
+                if (!grouped[tgl]) grouped[tgl] = { gmv:0, cost:0 }
+                grouped[tgl].gmv += Number(r.gmv)||0
+                grouped[tgl].cost += Number(r.cost)||0
+              })
+              grafikData = Object.entries(grouped)
+                .sort(([a],[b]) => a.localeCompare(b))
+                .map(([tgl, v]) => ({
+                  label: tgl.slice(5),
+                  gmv: v.gmv,
+                  cost: v.cost,
+                }))
+              lines = [
+                { key:'gmv', color:'#FF6B35', label:'GMV' },
+                { key:'cost', color:'#DC2626', label:'Spending', dash:true },
+              ]
+              title = 'Tren GMV vs Spending — Paid Partnership'
+            }
+
+            if (grafikData.length === 0) return null
+
+            return (
+              <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+                borderRadius:12, padding:20, marginBottom:20,
+                boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+                <p style={{ margin:'0 0 4px', fontWeight:700,
+                  fontSize:14, color:'#1A1A1A' }}>{title}</p>
+                <p style={{ margin:'0 0 16px', fontSize:12, color:'#999' }}>
+                  {activeTab==='monthly' ? 'Seluruh data bulan yang tersedia'
+                    : activeTab==='weekly' ? 'Seluruh data minggu yang tersedia'
+                    : 'Tren per tanggal entry'}
+                </p>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={grafikData}
+                    margin={{ top:5, right:10, left:10, bottom:5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#FFF3ED" />
+                    <XAxis dataKey="label"
+                      tick={{ fontSize:11, fill:'#999' }}
+                      tickLine={false}
+                      axisLine={{ stroke:'#FFE0CC' }} />
+                    <YAxis tickFormatter={fmtAxis}
+                      tick={{ fontSize:11, fill:'#999' }}
+                      tickLine={false} axisLine={false} width={60} />
+                    <Tooltip
+                      formatter={(v,name) => [
+                        'Rp '+Number(v).toLocaleString('id-ID'),
+                        lines.find(l=>l.key===name)?.label || name
+                      ]}
+                      contentStyle={{ fontSize:12, borderRadius:8,
+                        border:'1px solid #FFE0CC' }} />
+                    <Legend formatter={v =>
+                      lines.find(l=>l.key===v)?.label || v} />
+                    {lines.map(l => (
+                      <Line key={l.key} type="monotone" dataKey={l.key}
+                        stroke={l.color} strokeWidth={2}
+                        strokeDasharray={l.dash ? '5 5' : undefined}
+                        dot={{ r:3, fill:l.color, strokeWidth:0 }}
+                        activeDot={{ r:5 }} />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )
+          })()}
 
           {/* ── TABEL DATA ── */}
           <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
