@@ -1,7 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { supabase } from '../lib/supabase'
 
 const MENU = [
   {
@@ -46,6 +47,22 @@ export default function Sidebar({ collapsed, setCollapsed, activePlatform, setAc
   const [openSubmenu, setOpenSubmenu] = useState(
     pathname.startsWith('/ads') ? 'Performance Marketing' : null
   )
+  const [user, setUser] = useState(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data?.user || null)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_, session) => setUser(session?.user || null)
+    )
+    return () => listener?.subscription?.unsubscribe()
+  }, [])
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
 
   function handleMenuClick(item) {
     if (item.submenu) {
@@ -264,6 +281,75 @@ export default function Sidebar({ collapsed, setCollapsed, activePlatform, setAc
           </div>
         ))}
       </nav>
+
+      {user && (
+        <div style={{
+          padding: collapsed ? '12px 8px' : '12px 16px',
+          borderTop: '1px solid #FFE0CC',
+        }}>
+          {!collapsed && (
+            <div style={{
+              display: 'flex', alignItems: 'center', 
+              gap: 10, marginBottom: 10,
+              padding: '10px 12px',
+              background: '#FFF8F5',
+              borderRadius: 10,
+              border: '1px solid #FFE0CC',
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #FF6B35, #FF8C00)',
+                display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 14,
+                color: '#fff', fontWeight: 700, flexShrink: 0,
+              }}>
+                {(user.email || 'U').charAt(0).toUpperCase()}
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 600,
+                  color: '#1A1A1A', whiteSpace: 'nowrap',
+                  overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {user.email?.split('@')[0]}
+                </p>
+                <p style={{ margin: 0, fontSize: 10, color: '#999',
+                  whiteSpace: 'nowrap', overflow: 'hidden',
+                  textOverflow: 'ellipsis' }}>
+                  {user.email}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {collapsed && (
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #FF6B35, #FF8C00)',
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'center', fontSize: 14,
+              color: '#fff', fontWeight: 700, margin: '0 auto 8px',
+              cursor: 'pointer',
+            }}>
+              {(user.email || 'U').charAt(0).toUpperCase()}
+            </div>
+          )}
+
+          <button onClick={handleLogout}
+            style={{
+              width: '100%', padding: '8px 0', borderRadius: 8,
+              border: '1px solid #FFE0CC',
+              background: '#fff', cursor: 'pointer',
+              fontSize: 12, color: '#FF6B35',
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'center', gap: 6,
+              fontWeight: 500,
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#FFF3ED'}
+            onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+            {collapsed ? '↩' : '↩ Keluar'}
+          </button>
+        </div>
+      )}
 
       {/* Collapse toggle */}
       <div style={{
