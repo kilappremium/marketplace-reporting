@@ -13,6 +13,23 @@ const fmt    = n => (!n && n !== 0) ? '0' : Number(n).toLocaleString('id-ID')
 const fmtPct = n => (Number(n) >= 0 ? '+' : '') + Number(n).toFixed(1) + '%'
 const sum    = (arr, f) => arr.reduce((a, b) => a + (Number(b[f]) || 0), 0)
 
+const CHANNELS = ['Shopee', 'TikTok', 'Tokopedia', 'Lazada']
+
+const EMPTY_PENJUALAN = {
+  tanggal: new Date().toISOString().split('T')[0],
+  channel: '',
+  gmv: '', visitor: '', pesanan_masuk: '',
+  produk_terjual: '', pesanan_batal: '',
+  cancel_rate: '', aov_order: '', apv_produk: '',
+  basket_size: '', visitor_cvr: '',
+  customer_baru: '', customer_repeat: '',
+  total_customer: '', repeat_customer_rate: '',
+  gagal_pickup: '', fail_to_pickup_rate: '',
+  submission_campaign: '',
+  gmv_affiliate: '', cost_affiliate: '',
+  pesanan_affiliate: '', roi_affiliate: '',
+}
+
 // ─── Minggu helper ────────────────────────────────────────
 function getWeekRange(weeksAgo = 0) {
   const now = new Date()
@@ -45,10 +62,16 @@ export default function DashboardPage() {
   const [prevLive, setPrevLive]                 = useState([])
   const [grafikData, setGrafikData]             = useState([])
 
+  const [showFormPenjualan, setShowFormPenjualan] = useState(false)
+  const [formPenjualan, setFormPenjualan]         = useState(EMPTY_PENJUALAN)
+  const [savingPenjualan, setSavingPenjualan]     = useState(false)
+  const [dataPenjualan, setDataPenjualan]         = useState([])
+  const [editPenjualanId, setEditPenjualanId]     = useState(null)
+
   const thisWeek = getWeekRange(0)
   const lastWeek = getWeekRange(1)
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => { fetchAll(); fetchDataPenjualan() }, [])
 
   async function fetchAll() {
     setLoading(true)
@@ -121,6 +144,94 @@ export default function DashboardPage() {
     })
     setGrafikData(grafikWeeks)
     setLoading(false)
+  }
+
+  function autoCalcPenjualan(f) {
+    const updated = { ...f }
+    const gmv = Number(f.gmv) || 0
+    const pesananMasuk = Number(f.pesanan_masuk) || 0
+    const produkTerjual = Number(f.produk_terjual) || 0
+    const pesananBatal = Number(f.pesanan_batal) || 0
+    const visitor = Number(f.visitor) || 0
+    const custBaru = Number(f.customer_baru) || 0
+    const custRepeat = Number(f.customer_repeat) || 0
+    const gagalPickup = Number(f.gagal_pickup) || 0
+    const gmvAffiliate = Number(f.gmv_affiliate) || 0
+    const costAffiliate = Number(f.cost_affiliate) || 0
+
+    if (pesananMasuk && pesananBatal)
+      updated.cancel_rate = (pesananBatal / pesananMasuk * 100).toFixed(2)
+    if (gmv && pesananMasuk)
+      updated.aov_order = (gmv / pesananMasuk).toFixed(0)
+    if (gmv && produkTerjual)
+      updated.apv_produk = (gmv / produkTerjual).toFixed(0)
+    if (produkTerjual && pesananMasuk)
+      updated.basket_size = (produkTerjual / pesananMasuk).toFixed(2)
+    if (pesananMasuk && visitor)
+      updated.visitor_cvr = (pesananMasuk / visitor * 100).toFixed(2)
+    updated.total_customer = custBaru + custRepeat
+    if (updated.total_customer > 0)
+      updated.repeat_customer_rate = (custRepeat / updated.total_customer * 100).toFixed(2)
+    if (gagalPickup && pesananMasuk)
+      updated.fail_to_pickup_rate = (gagalPickup / pesananMasuk * 100).toFixed(2)
+    if (gmvAffiliate && costAffiliate)
+      updated.roi_affiliate = (gmvAffiliate / costAffiliate).toFixed(2)
+
+    return updated
+  }
+
+  async function fetchDataPenjualan() {
+    const tahun = new Date().getFullYear()
+    const { data: rows } = await supabase
+      .from('penjualan_harian')
+      .select('*')
+      .gte('tanggal', `${tahun}-01-01`)
+      .order('tanggal', { ascending: false })
+    setDataPenjualan(rows || [])
+  }
+
+  async function handleSubmitPenjualan() {
+    if (!formPenjualan.channel || !formPenjualan.tanggal) {
+      alert('Channel dan tanggal wajib diisi!')
+      return
+    }
+    setSavingPenjualan(true)
+    const calc = autoCalcPenjualan(formPenjualan)
+    const payload = {
+      tanggal: calc.tanggal,
+      channel: calc.channel,
+      gmv: Number(calc.gmv) || 0,
+      visitor: Number(calc.visitor) || 0,
+      pesanan_masuk: Number(calc.pesanan_masuk) || 0,
+      produk_terjual: Number(calc.produk_terjual) || 0,
+      pesanan_batal: Number(calc.pesanan_batal) || 0,
+      cancel_rate: Number(calc.cancel_rate) || 0,
+      aov_order: Number(calc.aov_order) || 0,
+      apv_produk: Number(calc.apv_produk) || 0,
+      basket_size: Number(calc.basket_size) || 0,
+      visitor_cvr: Number(calc.visitor_cvr) || 0,
+      customer_baru: Number(calc.customer_baru) || 0,
+      customer_repeat: Number(calc.customer_repeat) || 0,
+      total_customer: Number(calc.total_customer) || 0,
+      repeat_customer_rate: Number(calc.repeat_customer_rate) || 0,
+      gagal_pickup: Number(calc.gagal_pickup) || 0,
+      fail_to_pickup_rate: Number(calc.fail_to_pickup_rate) || 0,
+      submission_campaign: Number(calc.submission_campaign) || 0,
+      gmv_affiliate: Number(calc.gmv_affiliate) || 0,
+      cost_affiliate: Number(calc.cost_affiliate) || 0,
+      pesanan_affiliate: Number(calc.pesanan_affiliate) || 0,
+      roi_affiliate: Number(calc.roi_affiliate) || 0,
+    }
+    if (editPenjualanId) {
+      await supabase.from('penjualan_harian').update(payload).eq('id', editPenjualanId)
+      setEditPenjualanId(null)
+    } else {
+      await supabase.from('penjualan_harian').insert([payload])
+    }
+    setSavingPenjualan(false)
+    setFormPenjualan(EMPTY_PENJUALAN)
+    setShowFormPenjualan(false)
+    fetchDataPenjualan()
   }
 
   // ─── Kalkulasi metrics ────────────────────────────────
@@ -297,6 +408,13 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={() => { setShowFormPenjualan(true); setFormPenjualan(EMPTY_PENJUALAN); setEditPenjualanId(null) }}
+            style={{ padding:'8px 18px', borderRadius:8,
+              background:'linear-gradient(135deg,#FF6B35,#FF8C00)',
+              color:'#fff', border:'none', cursor:'pointer',
+              fontSize:13, fontWeight:600 }}>
+            + Input Data
+          </button>
           <div style={{
             background: '#FFF3ED', border: '1px solid #FFE0CC',
             borderRadius: 8, padding: '6px 12px', fontSize: 12,
@@ -306,6 +424,128 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
           </div>
         </div>
       </div>
+
+      {showFormPenjualan && (
+        <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+          borderRadius:12, padding:24, marginBottom:24,
+          boxShadow:'0 2px 8px rgba(255,100,0,0.08)' }}>
+          <div style={{ display:'flex', justifyContent:'space-between',
+            alignItems:'center', marginBottom:20 }}>
+            <div>
+              <p style={{ margin:0, fontWeight:700, fontSize:16, color:'#1A1A1A' }}>
+                {editPenjualanId ? 'Edit data penjualan' : 'Input data penjualan harian'}
+              </p>
+              <p style={{ margin:0, fontSize:12, color:'#FF6B35' }}>
+                Semua field otomatis dihitung saat diisi
+              </p>
+            </div>
+            <button onClick={() => { setShowFormPenjualan(false); setFormPenjualan(EMPTY_PENJUALAN); setEditPenjualanId(null) }}
+              style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'#999' }}>×</button>
+          </div>
+
+          {[
+            { title: 'Informasi Dasar', fields: [
+              { label:'Tanggal *', name:'tanggal', type:'date' },
+              { label:'Channel *', name:'channel', type:'select', options: CHANNELS },
+            ]},
+            { title: 'Penjualan', fields: [
+              { label:'GMV (Rp)', name:'gmv' },
+              { label:'Visitor', name:'visitor' },
+              { label:'Pesanan Masuk', name:'pesanan_masuk' },
+              { label:'Produk Terjual', name:'produk_terjual' },
+              { label:'Pesanan Batal', name:'pesanan_batal' },
+              { label:'Cancel Rate % (auto)', name:'cancel_rate', auto:true },
+              { label:'AOV Order (auto)', name:'aov_order', auto:true },
+              { label:'APV Produk (auto)', name:'apv_produk', auto:true },
+              { label:'Basket Size (auto)', name:'basket_size', auto:true },
+              { label:'Visitor CVR % (auto)', name:'visitor_cvr', auto:true },
+            ]},
+            { title: 'Customer', fields: [
+              { label:'Customer Baru', name:'customer_baru' },
+              { label:'Customer Repeat Order', name:'customer_repeat' },
+              { label:'Total Customer (auto)', name:'total_customer', auto:true },
+              { label:'Repeat Customer Rate % (auto)', name:'repeat_customer_rate', auto:true },
+            ]},
+            { title: 'Pengiriman & Campaign', fields: [
+              { label:'Gagal Pickup', name:'gagal_pickup' },
+              { label:'Fail to Pickup Rate % (auto)', name:'fail_to_pickup_rate', auto:true },
+              { label:'Submission Campaign', name:'submission_campaign' },
+            ]},
+            { title: 'Affiliate', fields: [
+              { label:'GMV Affiliate (Rp)', name:'gmv_affiliate' },
+              { label:'Cost Affiliate (Rp)', name:'cost_affiliate' },
+              { label:'Pesanan Affiliate', name:'pesanan_affiliate' },
+              { label:'ROI Affiliate (auto)', name:'roi_affiliate', auto:true },
+            ]},
+          ].map(section => (
+            <div key={section.title} style={{ marginBottom:16 }}>
+              <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:600,
+                color:'#FF8C00', textTransform:'uppercase',
+                letterSpacing:'0.08em', background:'#FFF3ED',
+                padding:'4px 10px', borderRadius:4, display:'inline-block' }}>
+                {section.title}
+              </p>
+              <div style={{ display:'grid',
+                gridTemplateColumns:'repeat(auto-fit, minmax(160px,1fr))',
+                gap:10 }}>
+                {section.fields.map(f => (
+                  <div key={f.name}>
+                    <label style={{ fontSize:12, color:'#374151',
+                      fontWeight:500, display:'block', marginBottom:5 }}>
+                      {f.label}
+                    </label>
+                    {f.type === 'select' ? (
+                      <select name={f.name}
+                        value={formPenjualan[f.name] || ''}
+                        onChange={e => setFormPenjualan(
+                          autoCalcPenjualan({...formPenjualan, [e.target.name]: e.target.value})
+                        )}
+                        style={{ width:'100%', padding:'8px 12px',
+                          borderRadius:8, border:'1px solid #FFD4B8',
+                          fontSize:13, color:'#1A1A1A', background:'#fff' }}>
+                        <option value="">-- Pilih --</option>
+                        {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type={f.type || 'number'}
+                        name={f.name}
+                        value={formPenjualan[f.name] || ''}
+                        readOnly={f.auto}
+                        placeholder={f.auto ? 'otomatis' : '0'}
+                        onChange={e => !f.auto && setFormPenjualan(
+                          autoCalcPenjualan({...formPenjualan, [e.target.name]: e.target.value})
+                        )}
+                        style={{ width:'100%', padding:'8px 12px',
+                          borderRadius:8, fontSize:13,
+                          border:'1px solid #FFD4B8',
+                          color: f.auto ? '#999' : '#1A1A1A',
+                          background: f.auto ? '#FFF8F5' : '#fff',
+                          boxSizing:'border-box' }}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
+            <button onClick={() => { setShowFormPenjualan(false); setFormPenjualan(EMPTY_PENJUALAN); setEditPenjualanId(null) }}
+              style={{ padding:'9px 20px', borderRadius:8,
+                border:'1px solid #FFD4B8', background:'#fff',
+                cursor:'pointer', fontSize:13, color:'#374151' }}>
+              Batal
+            </button>
+            <button onClick={handleSubmitPenjualan} disabled={savingPenjualan}
+              style={{ padding:'9px 24px', borderRadius:8, border:'none',
+                background:'linear-gradient(135deg,#FF6B35,#FF8C00)',
+                color:'#fff', cursor:'pointer', fontSize:13, fontWeight:600 }}>
+              {savingPenjualan ? 'Menyimpan...' : editPenjualanId ? 'Perbarui' : 'Simpan data'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
@@ -625,6 +865,102 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
                 )
               })}
             </div>
+          </div>
+
+          <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+            borderRadius:12, padding:20, marginTop:16,
+            boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between',
+              alignItems:'center', marginBottom:16 }}>
+              <p style={{ margin:0, fontWeight:700, fontSize:14, color:'#1A1A1A' }}>
+                Data Penjualan Harian
+              </p>
+              <span style={{ fontSize:12, color:'#999' }}>
+                {dataPenjualan.length} entri
+              </span>
+            </div>
+            {dataPenjualan.length === 0 ? (
+              <p style={{ color:'#999', fontSize:13 }}>
+                Belum ada data. Klik "+ Input Data" untuk menambahkan.
+              </p>
+            ) : (
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                  <thead>
+                    <tr style={{ background:'#FFF3ED' }}>
+                      {['Tanggal','Channel','GMV','Visitor','Pesanan','Produk Terjual',
+                        'Cancel Rate','AOV','CVR','Total Customer','ROI Affiliate','Aksi']
+                        .map(h => (
+                        <th key={h} style={{ padding:'10px 12px', color:'#FF6B35',
+                          fontWeight:500, fontSize:11, whiteSpace:'nowrap',
+                          textAlign: h==='Tanggal'||h==='Channel' ? 'left' : 'right',
+                          borderBottom:'1px solid #FFE0CC' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dataPenjualan.slice(0,10).map(row => (
+                      <tr key={row.id} style={{ borderBottom:'0.5px solid #FFF3ED' }}>
+                        <td style={{ padding:'8px 12px', color:'#666', whiteSpace:'nowrap' }}>{row.tanggal}</td>
+                        <td style={{ padding:'8px 12px' }}>
+                          <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:500,
+                            background: row.channel==='Shopee' ? '#FFF0E6'
+                              : row.channel==='TikTok' ? '#F0F0FF'
+                              : row.channel==='Tokopedia' ? '#E6FBF0'
+                              : '#E6F1FB',
+                            color: row.channel==='Shopee' ? '#993C1D'
+                              : row.channel==='TikTok' ? '#3C3489'
+                              : row.channel==='Tokopedia' ? '#0C5C2E'
+                              : '#0C447C',
+                          }}>{row.channel}</span>
+                        </td>
+                        <td style={{ padding:'8px 12px', textAlign:'right', fontWeight:600, color:'#1A1A1A', whiteSpace:'nowrap' }}>
+                          Rp {Number(row.gmv).toLocaleString('id-ID')}</td>
+                        <td style={{ padding:'8px 12px', textAlign:'right', color:'#666' }}>
+                          {Number(row.visitor).toLocaleString('id-ID')}</td>
+                        <td style={{ padding:'8px 12px', textAlign:'right', color:'#666' }}>
+                          {Number(row.pesanan_masuk).toLocaleString('id-ID')}</td>
+                        <td style={{ padding:'8px 12px', textAlign:'right', color:'#666' }}>
+                          {Number(row.produk_terjual).toLocaleString('id-ID')}</td>
+                        <td style={{ padding:'8px 12px', textAlign:'right',
+                          color: Number(row.cancel_rate) > 5 ? '#DC2626' : '#166534',
+                          fontWeight:500 }}>
+                          {Number(row.cancel_rate).toFixed(2)}%</td>
+                        <td style={{ padding:'8px 12px', textAlign:'right', color:'#666', whiteSpace:'nowrap' }}>
+                          Rp {Number(row.aov_order).toLocaleString('id-ID')}</td>
+                        <td style={{ padding:'8px 12px', textAlign:'right', color:'#666' }}>
+                          {Number(row.visitor_cvr).toFixed(2)}%</td>
+                        <td style={{ padding:'8px 12px', textAlign:'right', color:'#666' }}>
+                          {Number(row.total_customer).toLocaleString('id-ID')}</td>
+                        <td style={{ padding:'8px 12px', textAlign:'right',
+                          fontWeight:600,
+                          color: Number(row.roi_affiliate) >= 2 ? '#166534' : '#DC2626' }}>
+                          {row.roi_affiliate > 0 ? Number(row.roi_affiliate).toFixed(2)+'x' : '-'}</td>
+                        <td style={{ padding:'8px 12px', textAlign:'right', whiteSpace:'nowrap' }}>
+                          <button onClick={() => {
+                            setFormPenjualan({...EMPTY_PENJUALAN, ...row})
+                            setEditPenjualanId(row.id)
+                            setShowFormPenjualan(true)
+                            window.scrollTo(0,0)
+                          }}
+                            style={{ fontSize:11, padding:'3px 10px', borderRadius:6,
+                              border:'1px solid #FFD4B8', background:'#fff',
+                              cursor:'pointer', marginRight:4, color:'#FF6B35' }}>Edit</button>
+                          <button onClick={async () => {
+                            if (!confirm('Yakin hapus?')) return
+                            await supabase.from('penjualan_harian').delete().eq('id', row.id)
+                            fetchDataPenjualan()
+                          }}
+                            style={{ fontSize:11, padding:'3px 10px', borderRadius:6,
+                              border:'1px solid #FECACA', background:'#FEF2F2',
+                              color:'#DC2626', cursor:'pointer' }}>Hapus</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </>
       )}
