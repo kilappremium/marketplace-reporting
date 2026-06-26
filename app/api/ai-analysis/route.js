@@ -20,8 +20,14 @@ export async function POST(request) {
       )
   
       const data = await response.json()
-      if (data.error) {
-        return Response.json({ error: 'Gemini error: ' + data.error.message }, { status: 400 })
+      
+      // Return full response for debugging
+      if (!response.ok || data.error) {
+        return Response.json({ 
+          error: data.error?.message || 'Unknown error',
+          full_response: data,
+          status_code: response.status
+        }, { status: 400 })
       }
   
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
