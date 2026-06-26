@@ -7,6 +7,20 @@ import {
   Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 
+function getWeekRange(weeksAgo = 0) {
+  const now = new Date()
+  const day = now.getDay() || 7
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - day + 1 - weeksAgo * 7)
+  monday.setHours(0,0,0,0)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  return {
+    from: monday.toISOString().split('T')[0],
+    to: sunday.toISOString().split('T')[0],
+  }
+}
+
 // ─── Format helpers ───────────────────────────────────────
 const fmt    = n => (n == null || n === '') ? '-' : Number(n).toLocaleString('id-ID')
 const fmtRp  = n => (n == null || n === '') ? '-' : 'Rp ' + Number(n).toLocaleString('id-ID')
@@ -197,6 +211,8 @@ export default function AdsPage() {
   const [uploadPlatform, setUploadPlatform] = useState('shopee')
   const [uploadNotif, setUploadNotif] = useState('')
   const [halamanTabel, setHalamanTabel] = useState(1)
+  const [grafikMingguan, setGrafikMingguan] = useState([])
+  const [anomaliAds, setAnomaliAds] = useState([])
   const BARIS_PER_HALAMAN = 10
 
   useEffect(() => {
@@ -229,7 +245,7 @@ export default function AdsPage() {
     }
   }, [])
 
-  useEffect(() => { fetchAll() }, [bulan])
+  useEffect(() => { fetchAll() }, [bulan, activeTab])
 
   async function fetchAll() {
     setLoading(true)
@@ -249,6 +265,62 @@ export default function AdsPage() {
       tiktok: filterBulan(r2.data),
       meta:   filterBulan(r3.data),
     })
+
+    const tabelNama = PLATFORM_CONFIG[activeTab]?.table
+    const allData = [...(r1.data||[]), ...(r2.data||[]), ...(r3.data||[])]
+
+    const grafikData = Array.from({length:8}, (_,i) => {
+      const range = getWeekRange(7-i)
+      const d = new Date(range.from)
+      const startOfYear = new Date(d.getFullYear(),0,1)
+      const weekNum = Math.ceil(((d-startOfYear)/86400000+startOfYear.getDay()+1)/7)
+
+      const filterPlatform = (arr) => arr.filter(r =>
+        r.tanggal >= range.from && r.tanggal <= range.to)
+
+      const shopeeW = filterPlatform(r1.data||[])
+      const tiktokW = filterPlatform(r2.data||[])
+      const metaW = filterPlatform(r3.data||[])
+
+      return {
+        label: `W${weekNum}`,
+        shopee_omzet: shopeeW.reduce((a,b)=>a+(Number(b.omzet)||0),0),
+        tiktok_omzet: tiktokW.reduce((a,b)=>a+(Number(b.omzet)||0),0),
+        meta_omzet: metaW.reduce((a,b)=>a+(Number(b.omzet)||0),0),
+        total_biaya: [...shopeeW,...tiktokW,...metaW]
+          .reduce((a,b)=>a+(Number(b.biaya_iklan)||0),0),
+      }
+    })
+    setGrafikMingguan(grafikData)
+
+    const thisWeek = getWeekRange(0)
+    const lastWeek = getWeekRange(1)
+    const tbl = PLATFORM_CONFIG[activeTab]?.table
+    const activeData = activeTab === 'shopee' ? (r1.data||[])
+      : activeTab === 'tiktok' ? (r2.data||[])
+      : (r3.data||[])
+
+    const thisData = activeData.filter(r =>
+      r.tanggal >= thisWeek.from && r.tanggal <= thisWeek.to)
+    const prevData = activeData.filter(r =>
+      r.tanggal >= lastWeek.from && r.tanggal <= lastWeek.to)
+
+    const thisOmzet = thisData.reduce((a,b)=>a+(Number(b.omzet)||0),0)
+    const prevOmzet = prevData.reduce((a,b)=>a+(Number(b.omzet)||0),0)
+    const thisBiaya = thisData.reduce((a,b)=>a+(Number(b.biaya_iklan)||0),0)
+    const prevBiaya = prevData.reduce((a,b)=>a+(Number(b.biaya_iklan)||0),0)
+    const thisRoas = thisBiaya > 0 ? thisOmzet/thisBiaya : 0
+    const prevRoas = prevBiaya > 0 ? prevOmzet/prevBiaya : 0
+
+    const anomali = []
+    if (prevOmzet > 0 && (thisOmzet-prevOmzet)/prevOmzet < -0.1)
+      anomali.push(`Omzet turun ${Math.abs(((thisOmzet-prevOmzet)/prevOmzet)*100).toFixed(1)}% vs minggu lalu`)
+    if (thisBiaya > 0 && thisRoas < 2)
+      anomali.push(`ROAS di bawah 2x (${thisRoas.toFixed(2)}x) — efisiensi iklan perlu dievaluasi`)
+    if (prevRoas > 0 && (thisRoas-prevRoas)/prevRoas < -0.15)
+      anomali.push(`ROAS turun ${Math.abs(((thisRoas-prevRoas)/prevRoas)*100).toFixed(1)}% vs minggu lalu`)
+    setAnomaliAds(anomali)
+
     setLoading(false)
   }
 
@@ -376,6 +448,19 @@ export default function AdsPage() {
       { label: 'Total ATC', value: fmt(sum(rows, 'atc')) },
       { label: 'AOV rata-rata', value: fmtRp(avg(rows, 'aov')) },
     ],
+  }
+
+  function GrowthBadge({ value }) {
+    const up = Number(value) >= 0
+    return (
+      <span style={{ fontSize:11, fontWeight:600,
+        padding:'2px 8px', borderRadius:20,
+        background: up ? '#DCFCE7' : '#FEE2E2',
+        color: up ? '#166534' : '#991B1B',
+        display:'inline-flex', alignItems:'center', gap:3 }}>
+        {up ? '▲' : '▼'} {Math.abs(Number(value)).toFixed(1)}%
+      </span>
+    )
   }
 
   return (
@@ -570,6 +655,155 @@ export default function AdsPage() {
           </button>
         </div>
       </div>
+
+      {/* ANOMALI ALERT */}
+      {anomaliAds.length > 0 && (
+        <div style={{ background:'#FFF8F0',
+          border:'1px solid #FFD4B8',
+          borderLeft:'4px solid #FF6B35',
+          borderRadius:10, padding:'14px 18px', marginBottom:20 }}>
+          <p style={{ margin:'0 0 8px', fontWeight:700,
+            fontSize:13, color:'#FF6B35' }}>
+            ⚠️ {anomaliAds.length} anomali terdeteksi minggu ini
+          </p>
+          {anomaliAds.map((a,i) => (
+            <p key={i} style={{ margin:'2px 0',
+              fontSize:13, color:'#664400' }}>• {a}</p>
+          ))}
+        </div>
+      )}
+
+      {/* SUMMARY CARDS MINGGU INI */}
+      {(() => {
+        const thisWeek = getWeekRange(0)
+        const lastWeek = getWeekRange(1)
+        const activeRows = filtered
+        const thisRows = activeRows.filter(r =>
+          r.tanggal >= thisWeek.from && r.tanggal <= thisWeek.to)
+        const prevRows = activeRows.filter(r =>
+          r.tanggal >= lastWeek.from && r.tanggal <= lastWeek.to)
+
+        const sumF = (arr, f) => arr.reduce((a,b)=>a+(Number(b[f])||0),0)
+        const growth = (curr, prev) => prev > 0
+          ? ((curr-prev)/prev*100).toFixed(1) : '0'
+
+        const thisOmzet = sumF(thisRows,'omzet')
+        const prevOmzet = sumF(prevRows,'omzet')
+        const thisBiaya = sumF(thisRows,'biaya_iklan')
+        const prevBiaya = sumF(prevRows,'biaya_iklan')
+        const thisRoas = thisBiaya > 0 ? thisOmzet/thisBiaya : 0
+        const prevRoas = prevBiaya > 0 ? prevOmzet/prevBiaya : 0
+        const thisPesanan = sumF(thisRows,'konversi')
+        const prevPesanan = sumF(prevRows,'konversi')
+
+        const cards = activeTab === 'shopee' ? [
+          { label:'Omzet Minggu Ini', value:'Rp '+thisOmzet.toLocaleString('id-ID'), growth:growth(thisOmzet,prevOmzet), highlight:true },
+          { label:'Biaya Iklan', value:'Rp '+thisBiaya.toLocaleString('id-ID'), growth:growth(thisBiaya,prevBiaya) },
+          { label:'ROAS', value:thisRoas.toFixed(2)+'x', growth:growth(thisRoas,prevRoas) },
+          { label:'Total Pesanan', value:thisPesanan.toLocaleString('id-ID'), growth:growth(thisPesanan,prevPesanan) },
+          { label:'Total Klik', value:sumF(thisRows,'klik').toLocaleString('id-ID'), growth:growth(sumF(thisRows,'klik'),sumF(prevRows,'klik')) },
+          { label:'Total Impresi', value:sumF(thisRows,'impresi').toLocaleString('id-ID'), growth:growth(sumF(thisRows,'impresi'),sumF(prevRows,'impresi')) },
+        ] : activeTab === 'tiktok' ? [
+          { label:'Omzet Minggu Ini', value:'Rp '+thisOmzet.toLocaleString('id-ID'), growth:growth(thisOmzet,prevOmzet), highlight:true },
+          { label:'Biaya Iklan', value:'Rp '+thisBiaya.toLocaleString('id-ID'), growth:growth(thisBiaya,prevBiaya) },
+          { label:'ROAS', value:thisRoas.toFixed(2)+'x', growth:growth(thisRoas,prevRoas) },
+          { label:'Total Pesanan', value:thisPesanan.toLocaleString('id-ID'), growth:growth(thisPesanan,prevPesanan) },
+        ] : [
+          { label:'Omzet Minggu Ini', value:'Rp '+thisOmzet.toLocaleString('id-ID'), growth:growth(thisOmzet,prevOmzet), highlight:true },
+          { label:'Biaya Iklan', value:'Rp '+thisBiaya.toLocaleString('id-ID'), growth:growth(thisBiaya,prevBiaya) },
+          { label:'ROAS', value:thisRoas.toFixed(2)+'x', growth:growth(thisRoas,prevRoas) },
+          { label:'Total Pesanan', value:thisPesanan.toLocaleString('id-ID'), growth:growth(thisPesanan,prevPesanan) },
+          { label:'Total Klik', value:sumF(thisRows,'klik').toLocaleString('id-ID'), growth:growth(sumF(thisRows,'klik'),sumF(prevRows,'klik')) },
+          { label:'Total Impresi', value:sumF(thisRows,'impresi').toLocaleString('id-ID'), growth:growth(sumF(thisRows,'impresi'),sumF(prevRows,'impresi')) },
+        ]
+
+        return (
+          <div style={{ display:'grid',
+            gridTemplateColumns:'repeat(auto-fit, minmax(180px,1fr))',
+            gap:12, marginBottom:20 }}>
+            {cards.map(m => (
+              <div key={m.label} style={{
+                background: m.highlight
+                  ? 'linear-gradient(135deg,#FF6B35,#FF8C00)' : '#fff',
+                border: m.highlight ? 'none' : '1px solid #FFE0CC',
+                borderRadius:12, padding:'16px 18px',
+                boxShadow:'0 2px 8px rgba(255,100,0,0.08)',
+              }}>
+                <p style={{ margin:'0 0 6px', fontSize:12, fontWeight:500,
+                  color: m.highlight ? 'rgba(255,255,255,0.8)' : '#999' }}>
+                  {m.label}
+                </p>
+                <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
+                  color: m.highlight ? '#fff' : '#1A1A1A',
+                  lineHeight:1.2 }}>
+                  {m.value}
+                </p>
+                <GrowthBadge value={m.growth} />
+              </div>
+            ))}
+          </div>
+        )
+      })()}
+
+      {/* GRAFIK TREN 8 MINGGU */}
+      {grafikMingguan.length > 0 && (
+        <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+          borderRadius:12, padding:20, marginBottom:20,
+          boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+          <p style={{ margin:'0 0 4px', fontWeight:700,
+            fontSize:14, color:'#1A1A1A' }}>
+            Tren Omzet Ads — 8 Minggu Terakhir
+          </p>
+          <p style={{ margin:'0 0 16px', fontSize:12, color:'#999' }}>
+            Shopee · TikTok · Meta · Biaya Iklan
+          </p>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={grafikMingguan}
+              margin={{ top:5, right:10, left:10, bottom:5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#FFF3ED" />
+              <XAxis dataKey="label"
+                tick={{ fontSize:11, fill:'#999' }}
+                tickLine={false}
+                axisLine={{ stroke:'#FFE0CC' }} />
+              <YAxis tickFormatter={v => {
+                if(v>=1000000) return (v/1000000).toFixed(0)+'jt'
+                if(v>=1000) return (v/1000).toFixed(0)+'rb'
+                return v
+              }}
+                tick={{ fontSize:11, fill:'#999' }}
+                tickLine={false} axisLine={false} width={60} />
+              <Tooltip
+                formatter={(v,name) => ['Rp '+Number(v).toLocaleString('id-ID'),
+                  name==='shopee_omzet'?'Shopee'
+                  :name==='tiktok_omzet'?'TikTok'
+                  :name==='meta_omzet'?'Meta':'Biaya Iklan']}
+                contentStyle={{ fontSize:12, borderRadius:8,
+                  border:'1px solid #FFE0CC' }} />
+              <Legend formatter={v =>
+                v==='shopee_omzet'?'Shopee'
+                :v==='tiktok_omzet'?'TikTok'
+                :v==='meta_omzet'?'Meta':'Biaya Iklan'} />
+              <Line type="monotone" dataKey="shopee_omzet"
+                stroke="#FF6B35" strokeWidth={2}
+                dot={{ r:3, fill:'#FF6B35', strokeWidth:0 }}
+                activeDot={{ r:5 }} />
+              <Line type="monotone" dataKey="tiktok_omzet"
+                stroke="#6C63FF" strokeWidth={2}
+                dot={{ r:3, fill:'#6C63FF', strokeWidth:0 }}
+                activeDot={{ r:5 }} />
+              <Line type="monotone" dataKey="meta_omzet"
+                stroke="#1877F2" strokeWidth={2}
+                dot={{ r:3, fill:'#1877F2', strokeWidth:0 }}
+                activeDot={{ r:5 }} />
+              <Line type="monotone" dataKey="total_biaya"
+                stroke="#DC2626" strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={{ r:3, fill:'#DC2626', strokeWidth:0 }}
+                activeDot={{ r:5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {loading ? (
         <p style={{ color: '#9CA3AF', fontSize: 14 }}>Memuat data...</p>
