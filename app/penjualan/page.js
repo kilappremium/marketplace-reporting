@@ -486,43 +486,32 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
         </div>
       </div>
 
-      <div style={{ background:'#fff', border:'1px solid #FFE0CC',
-        borderRadius:12, padding:'14px 20px', marginBottom:20,
-        boxShadow:'0 1px 4px rgba(255,100,0,0.06)',
-        display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-        <span style={{ fontSize:12, fontWeight:600, color:'#FF8C00',
-          whiteSpace:'nowrap' }}>Filter periode:</span>
-        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-          <input type="date" value={filterStart}
-            onChange={e => setFilterStart(e.target.value)}
-            style={{ padding:'7px 12px', borderRadius:8,
-              border:'1px solid #FFD4B8', fontSize:13,
-              color:'#1A1A1A', background:'#fff' }} />
-          <span style={{ fontSize:13, color:'#999' }}>s/d</span>
-          <input type="date" value={filterEnd}
-            onChange={e => setFilterEnd(e.target.value)}
-            style={{ padding:'7px 12px', borderRadius:8,
-              border:'1px solid #FFD4B8', fontSize:13,
-              color:'#1A1A1A', background:'#fff' }} />
-        </div>
+      <div style={{ display:'flex', alignItems:'center',
+        gap:8, marginBottom:20, flexWrap:'wrap' }}>
+        <span style={{ fontSize:12, color:'#999',
+          whiteSpace:'nowrap' }}>Periode:</span>
+        <input type="date" value={filterStart}
+          onChange={e => setFilterStart(e.target.value)}
+          style={{ padding:'6px 10px', borderRadius:8,
+            border:'1px solid #FFD4B8', fontSize:12,
+            color:'#1A1A1A', background:'#fff', outline:'none' }} />
+        <span style={{ fontSize:12, color:'#ccc' }}>—</span>
+        <input type="date" value={filterEnd}
+          onChange={e => setFilterEnd(e.target.value)}
+          style={{ padding:'6px 10px', borderRadius:8,
+            border:'1px solid #FFD4B8', fontSize:12,
+            color:'#1A1A1A', background:'#fff', outline:'none' }} />
         {(filterStart && filterEnd) && (
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ fontSize:12, color:'#FF6B35',
-              background:'#FFF3ED', padding:'4px 10px',
-              borderRadius:20, whiteSpace:'nowrap' }}>
-              {filterStart} → {filterEnd}
-            </span>
-            <button onClick={() => { setFilterStart(''); setFilterEnd('') }}
-              style={{ fontSize:12, padding:'5px 12px', borderRadius:8,
-                border:'1px solid #FFE0CC', background:'#fff',
-                color:'#999', cursor:'pointer' }}>
-              Reset
-            </button>
-          </div>
+          <button onClick={() => { setFilterStart(''); setFilterEnd('') }}
+            style={{ padding:'5px 10px', borderRadius:8, fontSize:11,
+              border:'1px solid #FFE0CC', background:'#FFF3ED',
+              color:'#FF6B35', cursor:'pointer', whiteSpace:'nowrap' }}>
+            ✕ Reset
+          </button>
         )}
-        {(!filterStart || !filterEnd) && (
-          <span style={{ fontSize:11, color:'#FFB899' }}>
-            * Default: membandingkan minggu ini vs minggu lalu
+        {(filterStart && filterEnd) && (
+          <span style={{ fontSize:11, color:'#FFB899', whiteSpace:'nowrap' }}>
+            vs {compareLabel}
           </span>
         )}
       </div>
