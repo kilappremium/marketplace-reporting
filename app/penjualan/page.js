@@ -194,38 +194,21 @@ export default function DashboardPage() {
     setAiText('')
     setAiError('')
 
-    const konteks = `
-Kamu adalah analis performa marketplace e-commerce yang berpengalaman.
-Berikan analisis singkat dan actionable dalam Bahasa Indonesia.
-Format: paragraf pendek, gunakan bold untuk angka penting.
-Maksimal 4 paragraf.
+    const konteks = `Kamu adalah analis marketplace e-commerce. 
+Analisis data berikut dalam Bahasa Indonesia, maksimal 3 paragraf singkat.
+Gunakan **bold** untuk angka penting.
 
-Data performa minggu ini (${thisWeek.from} s/d ${thisWeek.to}):
+Data minggu ini vs minggu lalu:
+- GMV: Rp ${totalGmv.toLocaleString('id-ID')} (${growthGmv.toFixed(1)}% vs minggu lalu)
+- Pesanan: ${totalPesanan} (${growthPesanan.toFixed(1)}% vs minggu lalu)  
+- Biaya Iklan: Rp ${totalBiayaAds.toLocaleString('id-ID')}
+- ROAS: ${roas.toFixed(2)}x
+- Sesi Live: ${totalSesiLive}
+- GMV Affiliate: Rp ${gmvAff.toLocaleString('id-ID')}
+- GMV Livestream: Rp ${gmvLive.toLocaleString('id-ID')}
+${anomali.length > 0 ? 'Anomali: ' + anomali.join(', ') : ''}
 
-RINGKASAN METRIK:
-- Total GMV: Rp ${totalGmv.toLocaleString('id-ID')} (${growthGmv >= 0 ? '+' : ''}${growthGmv.toFixed(1)}% vs minggu lalu)
-- Total Pesanan: ${totalPesanan.toLocaleString('id-ID')} (${growthPesanan >= 0 ? '+' : ''}${growthPesanan.toFixed(1)}% vs minggu lalu)
-- Total Biaya Iklan: Rp ${totalBiayaAds.toLocaleString('id-ID')} (${growthBiaya >= 0 ? '+' : ''}${growthBiaya.toFixed(1)}% vs minggu lalu)
-- ROAS: ${roas.toFixed(2)}x (${growthRoas >= 0 ? '+' : ''}${growthRoas.toFixed(1)}% vs minggu lalu)
-- Sesi Livestream: ${totalSesiLive} sesi (${growthLive >= 0 ? '+' : ''}${growthLive.toFixed(1)}% vs minggu lalu)
-
-GMV PER CHANNEL:
-- Affiliate: Rp ${gmvAff.toLocaleString('id-ID')}
-- Livestream: Rp ${gmvLive.toLocaleString('id-ID')}
-- Omzet dari Ads: Rp ${totalOmzetAds.toLocaleString('id-ID')}
-
-BIAYA ADS PER PLATFORM:
-- Shopee Ads: Rp ${sum(weeklyAds.shopee,'biaya_iklan').toLocaleString('id-ID')} → Omzet Rp ${gmvAdsShopee.toLocaleString('id-ID')}
-- TikTok GMV Max: Rp ${sum(weeklyAds.tiktok,'biaya_iklan').toLocaleString('id-ID')} → Omzet Rp ${gmvAdsTiktok.toLocaleString('id-ID')}
-- Meta Ads: Rp ${sum(weeklyAds.meta,'biaya_iklan').toLocaleString('id-ID')} → Omzet Rp ${gmvAdsMeta.toLocaleString('id-ID')}
-
-${anomali.length > 0 ? 'ANOMALI TERDETEKSI:\n' + anomali.map(a => '- ' + a).join('\n') : 'Tidak ada anomali signifikan.'}
-
-Berikan:
-1. Ringkasan performa minggu ini (1 paragraf)
-2. Temuan penting / anomali yang perlu diperhatikan (1 paragraf)  
-3. Rekomendasi actionable untuk minggu depan (1-2 paragraf)
-    `
+Berikan: ringkasan performa, temuan penting, rekomendasi.`
 
     try {
       const res = await fetch('/api/ai-analysis', {
