@@ -197,6 +197,8 @@ export default function AffiliatePage() {
   const [filterMinggu, setFilterMinggu] = useState('semua')
   const [filterStartDate, setFilterStartDate] = useState('')
   const [filterEndDate, setFilterEndDate] = useState('')
+  const [filterStart, setFilterStart] = useState('')
+  const [filterEnd, setFilterEnd] = useState('')
   const [halamanTabel, setHalamanTabel] = useState(1)
   const BARIS_PER_HALAMAN = 5
   const [biayaTambahanList, setBiayaTambahanList] = useState([
@@ -395,8 +397,10 @@ export default function AffiliatePage() {
 
   const rows = (() => {
     const all = data[activeTab] || []
+    let result
+
     if (activeTab === 'weekly' && filterMinggu !== 'semua') {
-      return all.filter(r => {
+      result = all.filter(r => {
         if (!r.tanggal) return false
         const rDate = new Date(r.tanggal)
         const fDate = new Date(filterMinggu)
@@ -404,8 +408,7 @@ export default function AffiliatePage() {
                rDate.getMonth() === fDate.getMonth() &&
                rDate.getDate() === fDate.getDate()
       })
-    }
-    if (activeTab === 'paid') {
+    } else if (activeTab === 'paid') {
       let filtered = all
       if (filterStartDate && filterEndDate) {
         filtered = all.filter(r => r.tanggal &&
@@ -415,9 +418,16 @@ export default function AffiliatePage() {
       } else if (filterEndDate) {
         filtered = all.filter(r => r.tanggal && r.tanggal <= filterEndDate)
       }
-      return groupPaidData(filtered)
+      result = groupPaidData(filtered)
+    } else {
+      result = all
     }
-    return all
+
+    if (filterStart && filterEnd) {
+      return result.filter(r =>
+        r.tanggal >= filterStart && r.tanggal <= filterEnd)
+    }
+    return result
   })()
   const totalHalaman = Math.ceil(rows.length / BARIS_PER_HALAMAN)
   const rowsPaginated = rows.slice(
@@ -427,103 +437,124 @@ export default function AffiliatePage() {
   const cfg  = PLATFORM_CONFIG[activeTab]
   const fields = activeTab === 'paid' ? PAID_FIELDS : COMMON_FIELDS
 
+  const prevRows = (() => {
+    const all = data[activeTab] || []
+    if (filterStart && filterEnd) {
+      const start = new Date(filterStart)
+      const end = new Date(filterEnd)
+      const durasi = Math.round((end-start)/(1000*60*60*24))+1
+      const prevEnd = new Date(start)
+      prevEnd.setDate(prevEnd.getDate()-1)
+      const prevStart = new Date(prevEnd)
+      prevStart.setDate(prevStart.getDate()-durasi+1)
+      return all.filter(r =>
+        r.tanggal >= prevStart.toISOString().split('T')[0] &&
+        r.tanggal <= prevEnd.toISOString().split('T')[0])
+    }
+    if (activeTab === 'monthly') {
+      const [y, m] = bulan.split('-').map(Number)
+      const prev = m === 1
+        ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,'0')}`
+      return all.filter(r => r.tanggal && r.tanggal.startsWith(prev))
+    }
+    if (activeTab === 'weekly') {
+      const sorted = [...all].sort((a,b) =>
+        b.tanggal.localeCompare(a.tanggal))
+      const currentIdx = filterMinggu !== 'semua'
+        ? sorted.findIndex(r => r.tanggal === filterMinggu)
+        : 0
+      return currentIdx < sorted.length - 1
+        ? [sorted[currentIdx + 1]] : []
+    }
+    return []
+  })()
+
+  const sumF = (arr, f) => arr.reduce((a,b)=>a+(Number(b[f])||0),0)
+  const growthPct = (curr, prev) => prev > 0
+    ? ((curr-prev)/prev*100).toFixed(1) : null
+
   // Summary cards
   const summaryCommon = [
-    { label: 'Total GMV', value: fmtRp(sum(rows, 'gmv')) },
-    { label: 'Growth Revenue', value: (() => {
-      const sorted = [...rows].sort((a, b) =>
-        a.tanggal.localeCompare(b.tanggal))
-      if (sorted.length < 2) return '-'
-      const latest = Number(sorted[sorted.length - 1].gmv) || 0
-      const prev = Number(sorted[sorted.length - 2].gmv) || 0
-      if (!prev) return '-'
-      const growth = ((latest - prev) / prev * 100).toFixed(2)
-      return (
-        <span style={{ color: Number(growth) >= 0 ? '#166534' : '#991B1B', fontWeight: 600 }}>
-          {growth}%
-        </span>
-      )
-    })() },
-    { label: 'Total Affiliate', value: fmt(sum(rows, 'total_affiliate')) },
-    { label: 'Making Sales Rate', value: (() => {
-      const totalJml = sum(rows, 'jumlah_making_sales')
-      const totalAff = sum(rows, 'total_affiliate')
-      return totalAff > 0 ? fmtPct(totalJml / totalAff * 100) : '-'
-    })() },
-    { label: 'Acquisition Cost Per Product', value: fmtRp(avg(rows, 'acquisition_cost_per_product')) },
-    { label: 'Jumlah Video', value: fmt(sum(rows, 'jumlah_video')) },
-    { label: 'Cost', value: fmtRp(sum(rows, 'cost')) },
-    {
-      label: 'ROI',
+    { label:'Total GMV',
+      value: fmtRp(sum(rows,'gmv')),
+      growth: growthPct(sum(rows,'gmv'), sumF(prevRows,'gmv')),
+      highlight: true },
+    { label:'Growth Revenue',
       value: (() => {
-        const totalGmv = sum(rows, 'gmv')
-        const totalCost = sum(rows, 'cost')
-        if (!totalCost) return '-'
-        return fmtX(totalGmv / totalCost)
-      })()
-    },
+        const sorted = [...rows].sort((a,b)=>a.tanggal.localeCompare(b.tanggal))
+        if (sorted.length < 2) return '-'
+        const latest = Number(sorted[sorted.length-1].gmv)||0
+        const prev = Number(sorted[sorted.length-2].gmv)||0
+        if (!prev) return '-'
+        const g = ((latest-prev)/prev*100).toFixed(2)
+        return <span style={{color:Number(g)>=0?'#166534':'#991B1B',fontWeight:600}}>{g}%</span>
+      })(),
+      growth: null },
+    { label:'Total Affiliate',
+      value: fmt(sum(rows,'total_affiliate')),
+      growth: growthPct(sum(rows,'total_affiliate'), sumF(prevRows,'total_affiliate')) },
+    { label:'Making Sales Rate',
+      value: (() => {
+        const jml = sum(rows,'jumlah_making_sales')
+        const aff = sum(rows,'total_affiliate')
+        return aff > 0 ? fmtPct(jml/aff*100) : '-'
+      })(),
+      growth: null },
+    { label:'Acquisition Cost Per Product',
+      value: fmtRp(avg(rows,'acquisition_cost_per_product')),
+      growth: growthPct(
+        Number(avg(rows,'acquisition_cost_per_product')),
+        Number(avg(prevRows,'acquisition_cost_per_product'))) },
+    { label:'Jumlah Video',
+      value: fmt(sum(rows,'jumlah_video')),
+      growth: growthPct(sum(rows,'jumlah_video'), sumF(prevRows,'jumlah_video')) },
+    { label:'Cost',
+      value: fmtRp(sum(rows,'cost')),
+      growth: growthPct(sum(rows,'cost'), sumF(prevRows,'cost')) },
+    { label:'ROI',
+      value: (() => {
+        const g = sum(rows,'gmv')
+        const c = sum(rows,'cost')
+        return c > 0 ? fmtX(g/c) : '-'
+      })(),
+      growth: (() => {
+        const currRoi = sum(rows,'cost')>0 ? sum(rows,'gmv')/sum(rows,'cost') : 0
+        const prevRoi = sumF(prevRows,'cost')>0 ? sumF(prevRows,'gmv')/sumF(prevRows,'cost') : 0
+        return growthPct(currRoi, prevRoi)
+      })() },
   ]
 
   const summaryPaid = [
-    {
-      label: 'Total GMV',
-      value: fmtRp(sum(rows, 'gmv')),
-      highlight: true
-    },
-    {
-      label: 'GMV Growth',
-      value: (() => {
-        const sorted = [...rows].sort((a, b) =>
-          a.tanggal.localeCompare(b.tanggal))
-        if (sorted.length < 2) return '-'
-        const latest = Number(sorted[sorted.length - 1].gmv) || 0
-        const prev = Number(sorted[sorted.length - 2].gmv) || 0
-        if (!prev) return '-'
-        const growth = ((latest - prev) / prev * 100).toFixed(2)
-        const color = Number(growth) >= 0 ? '#166534' : '#991B1B'
-        return { value: growth + '%', color }
-      })()
-    },
-    {
-      label: 'Making Sales Rate',
-      value: (() => {
-        const akunGmv = rows.filter(r => (Number(r.gmv) || 0) > 0).length
-        const totalAff = rows.length
-        return totalAff > 0
-          ? fmtPct(akunGmv / totalAff * 100)
-          : '-'
-      })()
-    },
-    {
-      label: 'Average GMV',
-      value: (() => {
-        const totalGmv = sum(rows, 'gmv')
-        return rows.length > 0 ? fmtRp(totalGmv / rows.length) : '-'
-      })()
-    },
-    {
-      label: 'Total Video Posted',
-      value: fmt(sum(rows, 'jumlah_konten'))
-    },
-    {
-      label: 'Total Livestream',
-      value: fmt(sum(rows, 'jumlah_live'))
-    },
-    {
-      label: 'Total Spending',
-      value: fmtRp(sum(rows, 'cost'))
-    },
-    {
-      label: 'ROI',
-      value: (() => {
-        const totalGmv = sum(rows, 'gmv')
-        const totalCost = sum(rows, 'cost')
-        return totalCost > 0 ? fmtX(totalGmv / totalCost) : '-'
-      })()
-    },
+    { label:'Total GMV', value: fmtRp(sum(rows,'gmv')),
+      growth: growthPct(sum(rows,'gmv'),sumF(prevRows,'gmv')), highlight:true },
+    { label:'GMV Growth', value: (() => {
+        const sorted=[...rows].sort((a,b)=>a.tanggal.localeCompare(b.tanggal))
+        if(sorted.length<2) return '-'
+        const l=Number(sorted[sorted.length-1].gmv)||0
+        const p=Number(sorted[sorted.length-2].gmv)||0
+        if(!p) return '-'
+        const g=((l-p)/p*100).toFixed(2)
+        return <span style={{color:Number(g)>=0?'#166534':'#991B1B',fontWeight:600}}>{g}%</span>
+      })(), growth:null },
+    { label:'Making Sales Rate', value: (() => {
+        const a=rows.filter(r=>(Number(r.gmv)||0)>0).length
+        return rows.length>0?fmtPct(a/rows.length*100):'-'
+      })(), growth:null },
+    { label:'Average GMV', value: rows.length>0?fmtRp(sum(rows,'gmv')/rows.length):'-',
+      growth:null },
+    { label:'Total Video Posted', value: fmt(sum(rows,'jumlah_konten')),
+      growth: growthPct(sum(rows,'jumlah_konten'),sumF(prevRows,'jumlah_konten')) },
+    { label:'Total Livestream', value: fmt(sum(rows,'jumlah_live')),
+      growth: growthPct(sum(rows,'jumlah_live'),sumF(prevRows,'jumlah_live')) },
+    { label:'Total Spending', value: fmtRp(sum(rows,'cost')),
+      growth: growthPct(sum(rows,'cost'),sumF(prevRows,'cost')) },
+    { label:'ROI', value: sum(rows,'cost')>0?fmtX(sum(rows,'gmv')/sum(rows,'cost')):'-',
+      growth: (() => {
+        const c=sum(rows,'cost')>0?sum(rows,'gmv')/sum(rows,'cost'):0
+        const p=sumF(prevRows,'cost')>0?sumF(prevRows,'gmv')/sumF(prevRows,'cost'):0
+        return growthPct(c,p)
+      })() },
   ]
-
-  const summaryCards = activeTab === 'paid' ? summaryPaid : summaryCommon
 
   // Grafik tren GMV
   const grafik = (() => {
@@ -866,11 +897,50 @@ export default function AffiliatePage() {
       {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {Object.entries(PLATFORM_CONFIG).map(([key, pc]) => (
-          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setFilterStartDate(''); setFilterEndDate(''); setHalamanTabel(1); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
+          <button key={key} onClick={() => { setActiveTab(key); setForm(buildEmpty(key)); setFilterMinggu('semua'); setFilterStartDate(''); setFilterEndDate(''); setFilterStart(''); setFilterEnd(''); setHalamanTabel(1); setBiayaTambahanList([{ jenis: 'Biaya Campaign', nominal: '', keterangan: '' }]) }}
             style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '2px solid', borderColor: activeTab === key ? pc.color.text : '#E5E7EB', background: activeTab === key ? pc.color.bg : '#fff', color: activeTab === key ? pc.color.text : '#6B7280' }}>
             {pc.label}
           </button>
         ))}
+      </div>
+
+      <div style={{ display:'flex', alignItems:'center',
+        gap:8, marginBottom:20, flexWrap:'wrap' }}>
+        <span style={{ fontSize:12, color:'#999',
+          whiteSpace:'nowrap' }}>Periode:</span>
+        <input type="date" value={filterStart}
+          onChange={e => setFilterStart(e.target.value)}
+          style={{ padding:'6px 10px', borderRadius:8,
+            border:'1px solid #FFD4B8', fontSize:12,
+            color:'#1A1A1A', background:'#fff', outline:'none' }} />
+        <span style={{ fontSize:12, color:'#ccc' }}>—</span>
+        <input type="date" value={filterEnd}
+          onChange={e => setFilterEnd(e.target.value)}
+          style={{ padding:'6px 10px', borderRadius:8,
+            border:'1px solid #FFD4B8', fontSize:12,
+            color:'#1A1A1A', background:'#fff', outline:'none' }} />
+        {(filterStart && filterEnd) && (
+          <button onClick={() => { setFilterStart(''); setFilterEnd('') }}
+            style={{ padding:'5px 10px', borderRadius:8, fontSize:11,
+              border:'1px solid #FFE0CC', background:'#FFF3ED',
+              color:'#FF6B35', cursor:'pointer' }}>
+            ✕ Reset
+          </button>
+        )}
+        {(filterStart && filterEnd) && (
+          <span style={{ fontSize:11, color:'#FFB899', whiteSpace:'nowrap' }}>
+            vs {(() => {
+              const start = new Date(filterStart)
+              const end = new Date(filterEnd)
+              const durasi = Math.round((end-start)/(1000*60*60*24))+1
+              const prevEnd = new Date(start)
+              prevEnd.setDate(prevEnd.getDate()-1)
+              const prevStart = new Date(prevEnd)
+              prevStart.setDate(prevStart.getDate()-durasi+1)
+              return prevStart.toISOString().split('T')[0]+' s/d '+prevEnd.toISOString().split('T')[0]
+            })()}
+          </span>
+        )}
       </div>
 
       {loading ? (
@@ -985,55 +1055,35 @@ export default function AffiliatePage() {
             </div>
           )}
 
-          {/* ── GRAFIK TREN ── */}
-          {grafik.length > 0 && (
-            <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>{activeTab === 'monthly' ? 'Tren GMV vs Cost — Sepanjang ' + new Date().getFullYear() : 'Tren GMV vs Cost — ' + cfg.label}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: '#6B7280' }}>Perbandingan GMV dan biaya per periode</p>
-                </div>
-                <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ width: 20, height: 2, background: '#16A34A', display: 'inline-block', borderRadius: 2 }}></span>
-                    <span style={{ color: '#6B7280' }}>GMV</span>
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ width: 20, height: 2, background: '#DC2626', display: 'inline-block', borderRadius: 2 }}></span>
-                    <span style={{ color: '#6B7280' }}>Cost</span>
-                  </span>
-                </div>
-              </div>
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={activeTab === 'monthly' ? grafikTahunan : grafik} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                  <XAxis dataKey={activeTab === 'monthly' ? 'bulan' : 'tgl'} tick={{ fontSize: 11, fill: '#9CA3AF' }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} />
-                  <YAxis tickFormatter={fmtRpAxis} tick={{ fontSize: 11, fill: '#9CA3AF' }} tickLine={false} axisLine={false} width={70} />
-                  <Tooltip
-                    formatter={(v, name) => ['Rp ' + Number(v).toLocaleString('id-ID'), name === 'gmv' ? 'GMV' : 'Cost']}
-                    labelFormatter={l => 'Tgl: ' + l}
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E5E7EB' }}
-                  />
-                  <Line type="monotone" dataKey="gmv" stroke="#16A34A" strokeWidth={2} dot={{ r: 3, fill: '#16A34A', strokeWidth: 0 }} activeDot={{ r: 5 }} />
-                  <Line type="monotone" dataKey="cost" stroke="#DC2626" strokeWidth={2} dot={{ r: 3, fill: '#DC2626', strokeWidth: 0 }} activeDot={{ r: 5 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
           {/* ── SUMMARY CARDS ── */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: 20 }}>
-            {summaryCards.map(m => (
-              <div key={m.label} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#6B7280', fontWeight: 500 }}>{m.label}</p>
-                <p style={{
-                  margin: 0, fontSize: 20, fontWeight: 700,
-                  color: m.value && typeof m.value === 'object'
-                    ? m.value.color : '#111'
-                }}>
-                  {m.value && typeof m.value === 'object'
-                    ? m.value.value : m.value}
+            {(activeTab==='paid'?summaryPaid:summaryCommon).map(m => (
+              <div key={m.label} style={{
+                background: m.highlight
+                  ? 'linear-gradient(135deg,#FF6B35,#FF8C00)' : '#fff',
+                border: m.highlight ? 'none' : '1px solid #FFE0CC',
+                borderRadius:10, padding:'14px 16px',
+                boxShadow:'0 1px 4px rgba(255,100,0,0.06)',
+              }}>
+                <p style={{ margin:'0 0 4px', fontSize:11, fontWeight:500,
+                  color: m.highlight?'rgba(255,255,255,0.8)':'#999' }}>
+                  {m.label}
                 </p>
+                <p style={{ margin:'0 0 6px', fontSize:20, fontWeight:700,
+                  color: m.highlight?'#fff':'#1A1A1A' }}>
+                  {m.value}
+                </p>
+                {m.growth !== null && m.growth !== undefined && (
+                  <span style={{ fontSize:11, fontWeight:600,
+                    padding:'2px 8px', borderRadius:20,
+                    background: Number(m.growth)>=0?'#DCFCE7':'#FEE2E2',
+                    color: Number(m.growth)>=0?'#166534':'#991B1B' }}>
+                    {Number(m.growth)>=0?'▲':'▼'} {Math.abs(Number(m.growth))}%
+                    <span style={{ fontWeight:400, marginLeft:4, opacity:0.8 }}>
+                      vs periode sebelumnya
+                    </span>
+                  </span>
+                )}
               </div>
             ))}
           </div>
