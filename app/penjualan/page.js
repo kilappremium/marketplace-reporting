@@ -631,16 +631,7 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
             </div>
           )}
 
-          {/* ── SUMMARY CARDS (GMV + lama) ── */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:14,marginBottom:24}}>
-            <MetricCard label={filterStart&&filterEnd?`Total GMV (${periodeLabel})`:'Total GMV Minggu Ini'} value={fmtRp(totalGmv)} growth={growthGmv} highlight />
-            <MetricCard label="Total Pesanan"    value={fmt(totalPesanan)}           growth={growthPesanan}/>
-            <MetricCard label="Total Biaya Iklan" value={fmtRp(totalBiayaAds)}      growth={growthBiaya}/>
-            <MetricCard label="ROAS Keseluruhan"  value={fmtX(roas)}                growth={growthRoas}/>
-            <MetricCard label="Sesi Livestream"   value={fmt(totalSesiLive)+' sesi'} growth={growthLive}/>
-          </div>
-
-          {/* ══ GRID SUMMARY PERFORMA ══ */}
+          {/* ══ SUMMARY PERFORMA (gabungan) ══ */}
           <div style={{background:'#fff',border:'1px solid #FFE0CC',borderRadius:12,padding:20,marginBottom:24,boxShadow:'0 2px 8px rgba(255,100,0,0.06)'}}>
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16,flexWrap:'wrap',justifyContent:'space-between'}}>
               <div>
@@ -657,26 +648,31 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
             </div>
 
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12}}>
-              {/* GMV Ads */}
+              <div style={{
+                background:'linear-gradient(135deg,#FF6B35,#FF8C00)',
+                borderRadius:12, padding:'18px 20px',
+                boxShadow:'0 2px 8px rgba(255,100,0,0.08)',
+                transition:'transform 0.15s,box-shadow 0.15s',
+              }}
+                onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 6px 16px rgba(255,100,0,0.15)'}}
+                onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 2px 8px rgba(255,100,0,0.08)'}}>
+                <p style={{margin:'0 0 6px',fontSize:12,fontWeight:500,color:'rgba(255,255,255,0.8)'}}>Total GMV Keseluruhan</p>
+                <p style={{margin:'0 0 10px',fontSize:24,fontWeight:700,color:'#fff',lineHeight:1.2}}>{fmtRp(totalGmv)}</p>
+                <GrowthBadge value={growthGmv} />
+              </div>
+
               <PerfCard label="GMV Ads" value={fmtRp(gmvAdsTotal)} sub={`Shopee+TikTok+Meta`}/>
-              {/* GMV Affiliate */}
               <PerfCard label="GMV Affiliate" value={fmtRp(gmvAff)} sub="dari affiliate_weekly"/>
-              {/* GMV Livestream */}
               <PerfCard label="GMV Livestream" value={fmtRp(gmvLive)} sub={`${totalSesiLive} sesi`}/>
-              {/* Visitor */}
               <PerfCard label="Visitor" value={fmt(spVisitor)} sub="dari penjualan harian"/>
-              {/* CTR */}
               <PerfCard label="CTR Ads" value={spCtr > 0 ? fmtPct(spCtr) : '—'} sub="avg dari ads"/>
-              {/* CVR */}
               <PerfCard label="CVR" value={fmtPct(spCvr)} sub={`${fmt(spPesanan)} pesanan / ${fmt(spVisitor)} visitor`}/>
-              {/* AOV */}
               <PerfCard label="AOV Order" value={spAov > 0 ? fmtRp(spAov) : '—'} sub="avg nilai per pesanan"/>
-              {/* Cancel Rate */}
               <PerfCard label="Cancel Rate" value={fmtPct(spCancelRate)} sub={`${fmt(spBatal)} batal / ${fmt(spPesanan)} pesanan`} warn={spCancelRate > 5}/>
-              {/* Fail to Pick Up */}
               <PerfCard label="Fail to Pick Up Rate" value={fmtPct(spFailRate)} sub={`${fmt(spGagalPickup)} gagal pickup`} warn={spFailRate > 3}/>
-              {/* ROI */}
               <PerfCard label="ROI Affiliate" value={spRoi > 0 ? fmtX(spRoi) : '—'} sub={`GMV ${fmtRp(spGmvAffiliate)} / Cost ${fmtRp(spCostAffiliate)}`}/>
+              <PerfCard label="Total Biaya Iklan" value={fmtRp(totalBiayaAds)}/>
+              <PerfCard label="ROAS Keseluruhan" value={fmtX(roas)}/>
             </div>
           </div>
 
