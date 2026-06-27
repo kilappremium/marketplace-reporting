@@ -194,6 +194,7 @@ const TABLE_COLS = {
 
 // ─── Komponen utama ───────────────────────────────────────
 export default function AdsPage() {
+  const today = new Date().toISOString().split('T')[0]
   const [activeTab, setActiveTab] = useState('shopee')
   const [data, setData] = useState({ shopee: [], tiktok: [], meta: [] })
   const [loading, setLoading] = useState(true)
@@ -203,8 +204,8 @@ export default function AdsPage() {
   const [saving, setSaving] = useState(false)
   const [notif, setNotif] = useState('')
   const [editId, setEditId] = useState(null)
-  const [bulan, setBulan] = useState(new Date().toISOString().slice(0, 7))
   const [filterJenis, setFilterJenis] = useState('semua')
+  const [filterJenisShopee, setFilterJenisShopee] = useState('semua')
   const [showUpload, setShowUpload] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadPreview, setUploadPreview] = useState([])
@@ -213,8 +214,8 @@ export default function AdsPage() {
   const [halamanTabel, setHalamanTabel] = useState(1)
   const [grafikMingguan, setGrafikMingguan] = useState([])
   const [anomaliAds, setAnomaliAds] = useState([])
-  const [filterStart, setFilterStart] = useState('')
-  const [filterEnd, setFilterEnd] = useState('')
+  const [filterStart, setFilterStart] = useState(today)
+  const [filterEnd, setFilterEnd] = useState(today)
   const BARIS_PER_HALAMAN = 10
 
   useEffect(() => {
@@ -223,8 +224,9 @@ export default function AdsPage() {
       const platform = params.get('platform')
       if (platform && ['shopee','tiktok','meta'].includes(platform)) {
         setActiveTab(platform)
-        setFilterStart('')
-        setFilterEnd('')
+        setFilterStart(today)
+        setFilterEnd(today)
+        setFilterJenisShopee('semua')
         setHalamanTabel(1)
       }
     }
@@ -249,7 +251,9 @@ export default function AdsPage() {
     }
   }, [])
 
-  useEffect(() => { fetchAll() }, [bulan, activeTab])
+  useEffect(() => { fetchAll() }, [activeTab])
+
+  useEffect(() => { setFilterJenisShopee('semua') }, [activeTab])
 
   async function fetchAll() {
     setLoading(true)
@@ -260,14 +264,10 @@ export default function AdsPage() {
       supabase.from('ads_meta').select('*').order('tanggal', { ascending: false }),
     ])
 
-    const filterBulan = (arr) => (arr || []).filter(row => {
-      return row.tanggal && row.tanggal.startsWith(bulan)
-    })
-
     setData({
-      shopee: filterBulan(r1.data),
-      tiktok: filterBulan(r2.data),
-      meta:   filterBulan(r3.data),
+      shopee: r1.data || [],
+      tiktok: r2.data || [],
+      meta:   r3.data || [],
     })
 
     const tabelNama = PLATFORM_CONFIG[activeTab]?.table
@@ -430,6 +430,10 @@ export default function AdsPage() {
       })
     }
 
+    if (activeTab === 'shopee' && filterJenisShopee !== 'semua') {
+      base = base.filter(r => r.nama_kampanye === filterJenisShopee)
+    }
+
     if (filterStart && filterEnd) {
       return base.filter(r => r.tanggal >= filterStart && r.tanggal <= filterEnd)
     }
@@ -457,10 +461,7 @@ export default function AdsPage() {
         r.tanggal >= prevStart.toISOString().split('T')[0] &&
         r.tanggal <= prevEnd.toISOString().split('T')[0])
     }
-    const [year, month] = bulan.split('-').map(Number)
-    const prevMonth = month === 1
-      ? `${year-1}-12` : `${year}-${String(month-1).padStart(2,'0')}`
-    return all.filter(r => r.tanggal && r.tanggal.startsWith(prevMonth))
+    return []
   })()
 
   const sumF = (arr, f) => arr.reduce((a,b)=>a+(Number(b[f])||0),0)
@@ -584,7 +585,7 @@ export default function AdsPage() {
                 <button onClick={() => { setUploadPreview([]); setUploadNotif('') }}
                   style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151' }}>Batal</button>
                 <button onClick={handleUploadSimpan} disabled={uploading}
-                  style={{ padding: '8px 24px', borderRadius: 8, border: 'none', background: '#16A34A', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                  style={{ padding: '8px 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6B35,#FF8C00)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                   {uploading ? 'Menyimpan...' : 'Simpan ' + uploadPreview.length + ' data'}
                 </button>
               </div>
@@ -677,7 +678,7 @@ export default function AdsPage() {
             <button onClick={() => { setShowForm(false); setForm(buildEmpty(formPlatform)); setEditId(null) }}
               style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151' }}>Batal</button>
             <button onClick={handleSubmit} disabled={saving}
-              style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: '#16A34A', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+              style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6B35,#FF8C00)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
               {saving ? 'Menyimpan...' : editId ? 'Perbarui data' : 'Simpan data'}
             </button>
           </div>
@@ -688,18 +689,25 @@ export default function AdsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111' }}>Ads Reporting</p>
-          <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Full funnel per platform · {bulan}</p>
+          <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Full funnel per platform · {filterStart} s/d {filterEnd}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input type="month" value={bulan} onChange={e => { setBulan(e.target.value); setHalamanTabel(1) }}
-            style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 13, color: '#111', background: '#fff' }} />
           <button onClick={() => { setShowUpload(true); setUploadPlatform(activeTab) }}
-            style={{ padding: '8px 18px', borderRadius: 8, background: '#fff', color: '#374151', border: '1px solid #D1D5DB', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
-            ⬆ Upload Excel
+            style={{
+              padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:600,
+              cursor:'pointer', border:'1.5px solid #FF8C00',
+              background:'#FFF3ED', color:'#FF6B35',
+              display:'flex', alignItems:'center', gap:6,
+            }}>
+            📥 Upload Excel
           </button>
           <button onClick={() => { setShowForm(true); setFormPlatform(activeTab); setForm(buildEmpty(activeTab)); setEditId(null) }}
-            style={{ padding: '8px 18px', borderRadius: 8, background: '#16A34A', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
-            + Input data
+            style={{
+              padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:600,
+              cursor:'pointer', border:'none',
+              background:'linear-gradient(135deg,#FF6B35,#FF8C00)', color:'#fff',
+            }}>
+            + Input Data
           </button>
         </div>
       </div>
@@ -720,12 +728,29 @@ export default function AdsPage() {
             border:'1px solid #FFD4B8', fontSize:12,
             color:'#1A1A1A', background:'#fff', outline:'none' }} />
         {(filterStart && filterEnd) && (
-          <button onClick={() => { setFilterStart(''); setFilterEnd('') }}
+          <button onClick={() => { setFilterStart(today); setFilterEnd(today); setFilterJenisShopee('semua') }}
             style={{ padding:'5px 10px', borderRadius:8, fontSize:11,
               border:'1px solid #FFE0CC', background:'#FFF3ED',
               color:'#FF6B35', cursor:'pointer' }}>
             ✕ Reset
           </button>
+        )}
+        {activeTab === 'shopee' && (
+          <div style={{display:'flex', gap:6, marginLeft:8}}>
+            {['semua','Iklan Produk','Iklan Toko'].map(j => (
+              <button key={j} onClick={() => setFilterJenisShopee(j)}
+                style={{
+                  padding:'5px 14px', borderRadius:20, fontSize:12, cursor:'pointer',
+                  fontWeight: filterJenisShopee === j ? 600 : 400,
+                  border: filterJenisShopee === j ? 'none' : '1px solid #FFD4B8',
+                  background: filterJenisShopee === j
+                    ? 'linear-gradient(135deg,#FF6B35,#FF8C00)' : '#fff',
+                  color: filterJenisShopee === j ? '#fff' : '#FF6B35',
+                }}>
+                {j === 'semua' ? 'Semua' : j}
+              </button>
+            ))}
+          </div>
         )}
         {(filterStart && filterEnd) && (
           <span style={{ fontSize:11, color:'#FFB899', whiteSpace:'nowrap' }}>
