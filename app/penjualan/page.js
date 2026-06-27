@@ -349,12 +349,55 @@ export default function DashboardPage() {
   const allAdsRows       = [...weeklyAds.shopee, ...weeklyAds.tiktok, ...weeklyAds.meta]
   const spCtr            = allAdsRows.length > 0 ? avg(allAdsRows,'ctr') : 0
 
+  // Periode sebelumnya untuk Summary Performa
+  const penjualanPrevFiltered = dataPenjualan.filter(r => {
+    const inPeriod = filterStart && filterEnd
+      ? (() => {
+          const start = new Date(filterStart)
+          const end = new Date(filterEnd)
+          const durasi = Math.round((end - start)/(1000*60*60*24)) + 1
+          const prevEnd = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1)
+          const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - durasi + 1)
+          return r.tanggal >= prevStart.toISOString().split('T')[0] && r.tanggal <= prevEnd.toISOString().split('T')[0]
+        })()
+      : r.tanggal >= lastWeek.from && r.tanggal <= lastWeek.to
+    const inChannel = !filterChannel || filterChannel === 'Semua Channel'
+      ? true : r.channel?.toLowerCase() === filterChannel.toLowerCase()
+    return inPeriod && inChannel
+  })
+
+  const prevSpVisitor   = sum(penjualanPrevFiltered, 'visitor')
+  const prevSpPesanan   = sum(penjualanPrevFiltered, 'pesanan_masuk')
+  const prevSpGmv       = sum(penjualanPrevFiltered, 'gmv')
+  const prevSpBatal     = sum(penjualanPrevFiltered, 'pesanan_batal')
+  const prevSpGagal     = sum(penjualanPrevFiltered, 'gagal_pickup')
+  const prevSpGmvAff    = sum(penjualanPrevFiltered, 'gmv_affiliate')
+  const prevSpCostAff   = sum(penjualanPrevFiltered, 'cost_affiliate')
+  const prevSpCancelRate  = prevSpPesanan > 0 ? prevSpBatal / prevSpPesanan * 100 : 0
+  const prevSpCvr         = prevSpVisitor  > 0 ? prevSpPesanan / prevSpVisitor * 100 : 0
+  const prevSpAov         = prevSpPesanan  > 0 ? prevSpGmv / prevSpPesanan : 0
+  const prevSpFailRate    = prevSpPesanan  > 0 ? prevSpGagal / prevSpPesanan * 100 : 0
+  const prevSpRoi         = prevSpCostAff  > 0 ? prevSpGmvAff / prevSpCostAff : 0
+  const prevAllAdsRows    = [...prevAds.shopee, ...prevAds.tiktok, ...prevAds.meta]
+  const prevSpCtr         = prevAllAdsRows.length > 0 ? avg(prevAllAdsRows, 'ctr') : 0
+
   const growth = (curr, prev) => prev > 0 ? ((curr - prev)/prev*100) : 0
   const growthGmv     = growth(totalGmv,     prevTotalGmv)
   const growthPesanan = growth(totalPesanan, prevPesanan)
   const growthBiaya   = growth(totalBiayaAds,prevBiayaAds)
   const growthRoas    = growth(roas,          prevRoas)
   const growthLive    = growth(totalSesiLive, prevSesiLive)
+
+  const growthGmvAds      = growth(gmvAdsTotal,    prevGmvAds)
+  const growthGmvAff      = growth(gmvAff,          prevGmvAff)
+  const growthGmvLive     = growth(gmvLive,         prevGmvLive)
+  const growthVisitor     = growth(spVisitor,       prevSpVisitor)
+  const growthCtr         = growth(spCtr,           prevSpCtr)
+  const growthCvr         = growth(spCvr,           prevSpCvr)
+  const growthAov         = growth(spAov,           prevSpAov)
+  const growthCancelRate  = growth(spCancelRate,    prevSpCancelRate)
+  const growthFailRate    = growth(spFailRate,      prevSpFailRate)
+  const growthRoi         = growth(spRoi,           prevSpRoi)
 
   // ─── Anomali ──────────────────────────────────────────
   const anomali = []
@@ -443,7 +486,7 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
   }
 
   // ─── Summary Performa Card kecil ──────────────────────
-  function PerfCard({ label, value, sub, warn }) {
+  function PerfCard({ label, value, sub, warn, growth }) {
     return (
       <div style={{
         background:'#fff', border:`1px solid ${warn ? '#FECACA' : '#FFE0CC'}`,
@@ -452,8 +495,9 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
         boxShadow:'0 1px 4px rgba(255,100,0,0.06)',
       }}>
         <p style={{margin:'0 0 4px',fontSize:11,color:'#999',fontWeight:500}}>{label}</p>
-        <p style={{margin:'0 0 2px',fontSize:20,fontWeight:700,color: warn ? '#DC2626' : '#1A1A1A'}}>{value}</p>
-        {sub && <p style={{margin:0,fontSize:11,color:'#bbb'}}>{sub}</p>}
+        <p style={{margin:'0 0 6px',fontSize:20,fontWeight:700,color: warn ? '#DC2626' : '#1A1A1A'}}>{value}</p>
+        {growth !== undefined && <GrowthBadge value={growth} />}
+        {sub && <p style={{margin:'4px 0 0',fontSize:11,color:'#bbb'}}>{sub}</p>}
       </div>
     )
   }
@@ -661,18 +705,18 @@ Berikan: ringkasan performa, temuan penting, rekomendasi.`
                 <GrowthBadge value={growthGmv} />
               </div>
 
-              <PerfCard label="GMV Ads" value={fmtRp(gmvAdsTotal)} sub={`Shopee+TikTok+Meta`}/>
-              <PerfCard label="GMV Affiliate" value={fmtRp(gmvAff)} sub="dari affiliate_weekly"/>
-              <PerfCard label="GMV Livestream" value={fmtRp(gmvLive)} sub={`${totalSesiLive} sesi`}/>
-              <PerfCard label="Visitor" value={fmt(spVisitor)} sub="dari penjualan harian"/>
-              <PerfCard label="CTR Ads" value={spCtr > 0 ? fmtPct(spCtr) : '—'} sub="avg dari ads"/>
-              <PerfCard label="CVR" value={fmtPct(spCvr)} sub={`${fmt(spPesanan)} pesanan / ${fmt(spVisitor)} visitor`}/>
-              <PerfCard label="AOV Order" value={spAov > 0 ? fmtRp(spAov) : '—'} sub="avg nilai per pesanan"/>
-              <PerfCard label="Cancel Rate" value={fmtPct(spCancelRate)} sub={`${fmt(spBatal)} batal / ${fmt(spPesanan)} pesanan`} warn={spCancelRate > 5}/>
-              <PerfCard label="Fail to Pick Up Rate" value={fmtPct(spFailRate)} sub={`${fmt(spGagalPickup)} gagal pickup`} warn={spFailRate > 3}/>
-              <PerfCard label="ROI Affiliate" value={spRoi > 0 ? fmtX(spRoi) : '—'} sub={`GMV ${fmtRp(spGmvAffiliate)} / Cost ${fmtRp(spCostAffiliate)}`}/>
-              <PerfCard label="Total Biaya Iklan" value={fmtRp(totalBiayaAds)}/>
-              <PerfCard label="ROAS Keseluruhan" value={fmtX(roas)}/>
+              <PerfCard label="GMV Ads"          value={fmtRp(gmvAdsTotal)}               growth={growthGmvAds}     sub="Shopee+TikTok+Meta"/>
+              <PerfCard label="GMV Affiliate"    value={fmtRp(gmvAff)}                    growth={growthGmvAff}     sub="dari affiliate_weekly"/>
+              <PerfCard label="GMV Livestream"   value={fmtRp(gmvLive)}                   growth={growthGmvLive}    sub={`${totalSesiLive} sesi`}/>
+              <PerfCard label="Visitor"          value={fmt(spVisitor)}                    growth={growthVisitor}    sub="dari penjualan harian"/>
+              <PerfCard label="CTR Ads"          value={spCtr > 0 ? fmtPct(spCtr) : '—'} growth={growthCtr}        sub="avg dari ads"/>
+              <PerfCard label="CVR"              value={fmtPct(spCvr)}                    growth={growthCvr}        sub={`${fmt(spPesanan)} pesanan / ${fmt(spVisitor)} visitor`}/>
+              <PerfCard label="AOV Order"        value={spAov > 0 ? fmtRp(spAov) : '—'}  growth={growthAov}        sub="avg nilai per pesanan"/>
+              <PerfCard label="Cancel Rate"      value={fmtPct(spCancelRate)}             growth={growthCancelRate} sub={`${fmt(spBatal)} batal / ${fmt(spPesanan)} pesanan`}    warn={spCancelRate > 5}/>
+              <PerfCard label="Fail to Pick Up"  value={fmtPct(spFailRate)}               growth={growthFailRate}   sub={`${fmt(spGagalPickup)} gagal pickup`}                   warn={spFailRate > 3}/>
+              <PerfCard label="ROI Affiliate"    value={spRoi > 0 ? fmtX(spRoi) : '—'}   growth={growthRoi}        sub={`GMV ${fmtRp(spGmvAffiliate)} / Cost ${fmtRp(spCostAffiliate)}`}/>
+              <PerfCard label="Total Biaya Iklan" value={fmtRp(totalBiayaAds)}           growth={growthBiaya}      sub={`Growth ${growthBiaya.toFixed(1)}%`}/>
+              <PerfCard label="ROAS Keseluruhan" value={fmtX(roas)}                       growth={growthRoas}       sub={`Growth ${growthRoas.toFixed(1)}%`}/>
             </div>
           </div>
 
