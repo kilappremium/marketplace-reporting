@@ -91,6 +91,9 @@ export default function LivestreamPage() {
   // Pagination
   const [halamanHost, setHalamanHost] = useState(1)
   const [halamanSesi, setHalamanSesi] = useState(1)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiText, setAiText]       = useState('')
+  const [aiError, setAiError]     = useState('')
   const BARIS = 10
 
   const fileRef = useRef()
@@ -196,6 +199,64 @@ export default function LivestreamPage() {
     if (!confirm('Yakin hapus data ini?')) return
     await supabase.from('livestream').delete().eq('id', id)
     fetchData()
+  }
+
+  async function generateAI() {
+    setAiLoading(true)
+    setAiText('')
+    setAiError('')
+
+    const topHost = [...perHost].slice(0, 3)
+      .map(h => `${h.nama_host} (GMV: ${fmtRp(h.gmv)}, ${h.sesi} sesi, GPJ: ${fmtRp(h.gmv_per_jam.toFixed(0))})`)
+      .join(', ')
+
+    const topSesi = [...perSesi].slice(0, 3)
+      .map(s => `${s.jadwal_sesi.split('|')[0].trim()} ${s.jadwal_sesi.split('|')[1]?.trim()} (GMV: ${fmtRp(s.gmv)})`)
+      .join(', ')
+
+    const filterInfo = [
+      filterHost ? `Host: ${filterHost}` : '',
+      filterPlatform ? `Platform: ${filterPlatform}` : '',
+      filterSesi ? `Sesi: ${filterSesi}` : '',
+      filterStart && filterEnd ? `Periode: ${filterStart} s/d ${filterEnd}` : '',
+    ].filter(Boolean).join(', ') || 'Semua data'
+
+    const konteks = `Kamu adalah analis livestream e-commerce Indonesia.
+Analisis performa livestream berikut dalam Bahasa Indonesia, maksimal 3 paragraf singkat.
+Gunakan **bold** untuk angka atau insight penting.
+
+Filter aktif: ${filterInfo}
+Total sesi: ${totalSesi} sesi
+Total durasi: ${totalDurasi.toFixed(1)} jam
+
+Summary metrik:
+- Omzet GMV: ${fmtRp(totalGmv)}
+- GMV per Jam: ${fmtRp(avgGmvPerJam.toFixed(0))}
+- Total Pesanan: ${fmt(totalPesanan)}
+- Total Penonton: ${fmt(sum(filtered,'penonton'))}
+- Conversion Rate: ${fmtPct(avgCvr.toFixed(2))}
+- Avg CTR TikTok: ${fmtPct(avgCtr.toFixed(2))}
+- Avg ERR TikTok: ${fmtPct(avgErr.toFixed(2))}
+- Avg GPM: ${fmtRp(avgGpm.toFixed(0))}
+
+Top 3 host: ${topHost || 'Belum ada data'}
+Top 3 sesi: ${topSesi || 'Belum ada data'}
+
+Berikan: ringkasan performa livestream, temuan penting (host terbaik, sesi terbaik, efisiensi GMV per jam, engagement), dan 2 rekomendasi konkret yang bisa langsung dieksekusi tim livestream.`
+
+    try {
+      const res  = await fetch('/api/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: konteks }),
+      })
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setAiText(json.text)
+    } catch (err) {
+      setAiError('Gagal memuat analisis AI. Coba lagi.')
+    }
+    setAiLoading(false)
   }
 
   // ─── Filter data ───────────────────────────────────────
@@ -606,6 +667,66 @@ export default function LivestreamPage() {
               </div>
             ))}
           </div>
+
+          {/* ── RINGKASAN AI ── */}
+          <div style={{ background:'#fff', border:'1px solid #FFE0CC', borderRadius:12, padding:20, marginBottom:20, boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#FF6B35,#FF8C00)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>✦</div>
+                <div>
+                  <p style={{ margin:0, fontWeight:700, fontSize:14, color:'#1A1A1A' }}>
+                    Ringkasan AI — Livestream
+                  </p>
+                  <p style={{ margin:0, fontSize:11, color:'#999' }}>
+                    Analisis otomatis · {filtered.length} sesi
+                    {filterHost ? ` · Host: ${filterHost}` : ''}
+                    {filterPlatform ? ` · ${filterPlatform}` : ''}
+                    {filterStart && filterEnd ? ` · ${filterStart} s/d ${filterEnd}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button onClick={generateAI} disabled={aiLoading}
+                style={{
+                  padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:600,
+                  cursor: aiLoading ? 'default' : 'pointer', border:'none',
+                  background: aiLoading ? '#FFE0CC' : 'linear-gradient(135deg,#FF6B35,#FF8C00)',
+                  color: aiLoading ? '#FFB899' : '#fff',
+                  display:'flex', alignItems:'center', gap:6,
+                }}>
+                {aiLoading ? (
+                  <>
+                    <span style={{ width:14, height:14, borderRadius:'50%', border:'2px solid #FFB899', borderTop:'2px solid #FF6B35', animation:'spin 1s linear infinite', display:'inline-block' }}/>
+                    Menganalisis...
+                  </>
+                ) : (
+                  <>✦ {aiText ? 'Perbarui' : 'Generate'} Analisis</>
+                )}
+              </button>
+            </div>
+
+            {aiError && <p style={{ color:'#DC2626', fontSize:13, margin:0 }}>{aiError}</p>}
+
+            {!aiText && !aiLoading && (
+              <div style={{ textAlign:'center', padding:'28px 0', border:'1px dashed #FFD4B8', borderRadius:10, background:'#FFF8F5' }}>
+                <p style={{ fontSize:28, margin:'0 0 8px' }}>✦</p>
+                <p style={{ fontSize:14, color:'#999', margin:'0 0 4px' }}>Klik "Generate Analisis" untuk mendapatkan</p>
+                <p style={{ fontSize:13, color:'#FFB899', margin:0 }}>ringkasan performa livestream, insight host & sesi terbaik dari AI</p>
+              </div>
+            )}
+
+            {aiText && (
+              <div style={{ fontSize:14, lineHeight:1.7, color:'#374151', background:'#FFF8F5', borderRadius:10, padding:'16px 20px', border:'1px solid #FFE0CC' }}
+                dangerouslySetInnerHTML={{ __html: aiText
+                  .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#FF6B35">$1</strong>')
+                  .replace(/\n\n/g, '</p><p style="margin:0 0 10px">')
+                  .replace(/\n/g, '<br/>')
+                  .replace(/^/, '<p style="margin:0 0 10px">')
+                  .replace(/$/, '</p>')
+                }}
+              />
+            )}
+          </div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
 
           {/* ── GRAFIK TREN GMV ── */}
           {grafikTren.length > 0 && (
