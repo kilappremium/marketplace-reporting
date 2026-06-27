@@ -21,7 +21,7 @@ function getWeekRange(weeksAgo = 0) {
   }
 }
 
-function buildGrafikHarian(r1data, r2data, r3data, start, end) {
+function buildGrafikHarian(rawData, start, end) {
   const dates = []
   const cur = new Date(start)
   const endDate = new Date(end)
@@ -31,15 +31,15 @@ function buildGrafikHarian(r1data, r2data, r3data, start, end) {
   }
 
   return dates.map(tgl => {
-    const shopeeRow = (r1data || []).filter(r => r.tanggal === tgl)
-    const tiktokRow = (r2data || []).filter(r => r.tanggal === tgl)
-    const metaRow   = (r3data || []).filter(r => r.tanggal === tgl)
+    const rows = (rawData || []).filter(r => r.tanggal === tgl)
+    const gmv     = rows.reduce((a,b) => a + (Number(b.omzet)||0), 0)
+    const biaya   = rows.reduce((a,b) => a + (Number(b.biaya_iklan)||0), 0)
+    const roas    = biaya > 0 ? gmv / biaya : 0
     return {
-      label: tgl.slice(5),
-      shopee_omzet: shopeeRow.reduce((a,b) => a + (Number(b.omzet)||0), 0),
-      tiktok_omzet: tiktokRow.reduce((a,b) => a + (Number(b.omzet)||0), 0),
-      meta_omzet:   metaRow.reduce((a,b)   => a + (Number(b.omzet)||0), 0),
-      total_biaya:  [...shopeeRow,...tiktokRow,...metaRow].reduce((a,b) => a + (Number(b.biaya_iklan)||0), 0),
+      label:  tgl.slice(5),
+      gmv,
+      biaya,
+      roas: Number(roas.toFixed(2)),
     }
   })
 }
@@ -238,7 +238,7 @@ export default function AdsPage() {
   const [uploadPlatform, setUploadPlatform] = useState('shopee')
   const [uploadNotif, setUploadNotif] = useState('')
   const [halamanTabel, setHalamanTabel] = useState(1)
-  const [grafikHarian, setGrafikHarian] = useState([])
+  const [grafikHarian, setGrafikHarian] = useState({ shopee: [], tiktok: [], meta: [] })
   const [anomaliAds, setAnomaliAds] = useState([])
   const [filterStart, setFilterStart] = useState(firstDayOfMonth)
   const [filterEnd, setFilterEnd] = useState(lastDayOfMonth)
@@ -296,7 +296,11 @@ export default function AdsPage() {
       meta:   r3.data || [],
     })
 
-    setGrafikHarian(buildGrafikHarian(r1.data, r2.data, r3.data, filterStart, filterEnd))
+    setGrafikHarian({
+      shopee: buildGrafikHarian(r1.data, filterStart, filterEnd),
+      tiktok: buildGrafikHarian(r2.data, filterStart, filterEnd),
+      meta:   buildGrafikHarian(r3.data, filterStart, filterEnd),
+    })
 
     const thisWeek = getWeekRange(0)
     const lastWeek = getWeekRange(1)
@@ -828,71 +832,109 @@ export default function AdsPage() {
         ))}
       </div>
 
-      {/* GRAFIK TREN HARIAN */}
-      {grafikHarian.length > 0 && (
-        <div style={{ background:'#fff', border:'1px solid #FFE0CC',
-          borderRadius:12, padding:20, marginBottom:20,
-          boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
-          <p style={{ margin:'0 0 4px', fontWeight:700,
-            fontSize:14, color:'#1A1A1A' }}>
-            Tren Omzet Ads — Harian
-          </p>
-          <p style={{ margin:'0 0 16px', fontSize:12, color:'#999' }}>
-            {filterStart} s/d {filterEnd} · Shopee · TikTok · Meta · Biaya Iklan
-          </p>
-          {grafikHarian.length > 90 ? (
-            <p style={{color:'#999', fontSize:13, textAlign:'center', padding:'40px 0'}}>
-              Rentang terlalu panjang untuk grafik harian. Pilih maksimal 90 hari.
+      {/* GRAFIK TREN HARIAN PER PLATFORM */}
+      {(() => {
+        const chartData = grafikHarian[activeTab] || []
+        const platformColor = {
+          shopee: { gmv: '#FF6B35', biaya: '#DC2626', roas: '#FF8C00' },
+          tiktok: { gmv: '#6C63FF', biaya: '#DC2626', roas: '#A78BFA' },
+          meta:   { gmv: '#1877F2', biaya: '#DC2626', roas: '#60A5FA' },
+        }[activeTab]
+
+        return (
+          <div style={{ background:'#fff', border:'1px solid #FFE0CC', borderRadius:12, padding:20, marginBottom:20, boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+            <p style={{ margin:'0 0 4px', fontWeight:700, fontSize:14, color:'#1A1A1A' }}>
+              Tren Harian — {cfg.label}
             </p>
-          ) : (
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={grafikHarian}
-              margin={{ top:5, right:10, left:10, bottom:5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#FFF3ED" />
-              <XAxis dataKey="label"
-                tick={{ fontSize:11, fill:'#999' }}
-                tickLine={false}
-                axisLine={{ stroke:'#FFE0CC' }} />
-              <YAxis tickFormatter={v => {
-                if(v>=1000000) return (v/1000000).toFixed(0)+'jt'
-                if(v>=1000) return (v/1000).toFixed(0)+'rb'
-                return v
-              }}
-                tick={{ fontSize:11, fill:'#999' }}
-                tickLine={false} axisLine={false} width={60} />
-              <Tooltip
-                formatter={(v,name) => ['Rp '+Number(v).toLocaleString('id-ID'),
-                  name==='shopee_omzet'?'Shopee'
-                  :name==='tiktok_omzet'?'TikTok'
-                  :name==='meta_omzet'?'Meta':'Biaya Iklan']}
-                contentStyle={{ fontSize:12, borderRadius:8,
-                  border:'1px solid #FFE0CC' }} />
-              <Legend formatter={v =>
-                v==='shopee_omzet'?'Shopee'
-                :v==='tiktok_omzet'?'TikTok'
-                :v==='meta_omzet'?'Meta':'Biaya Iklan'} />
-              <Line type="monotone" dataKey="shopee_omzet"
-                stroke="#FF6B35" strokeWidth={2}
-                dot={{ r:3, fill:'#FF6B35', strokeWidth:0 }}
-                activeDot={{ r:5 }} />
-              <Line type="monotone" dataKey="tiktok_omzet"
-                stroke="#6C63FF" strokeWidth={2}
-                dot={{ r:3, fill:'#6C63FF', strokeWidth:0 }}
-                activeDot={{ r:5 }} />
-              <Line type="monotone" dataKey="meta_omzet"
-                stroke="#1877F2" strokeWidth={2}
-                dot={{ r:3, fill:'#1877F2', strokeWidth:0 }}
-                activeDot={{ r:5 }} />
-              <Line type="monotone" dataKey="total_biaya"
-                stroke="#DC2626" strokeWidth={2}
-                strokeDasharray="5 5"
-                dot={{ r:3, fill:'#DC2626', strokeWidth:0 }}
-                activeDot={{ r:5 }} />
-            </LineChart>
-          </ResponsiveContainer>
-          )}
-        </div>
-      )}
+            <p style={{ margin:'0 0 16px', fontSize:12, color:'#999' }}>
+              {filterStart} s/d {filterEnd} · GMV · Cost · ROI
+            </p>
+
+            {chartData.length === 0 ? (
+              <p style={{ color:'#999', fontSize:13, textAlign:'center', padding:'40px 0' }}>
+                Tidak ada data pada periode ini
+              </p>
+            ) : chartData.length > 90 ? (
+              <p style={{ color:'#999', fontSize:13, textAlign:'center', padding:'40px 0' }}>
+                Rentang terlalu panjang untuk grafik harian. Pilih maksimal 90 hari.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={chartData} margin={{ top:5, right:60, left:10, bottom:5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#FFF3ED" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize:11, fill:'#999' }}
+                    tickLine={false}
+                    axisLine={{ stroke:'#FFE0CC' }}
+                  />
+                  <YAxis
+                    yAxisId="rp"
+                    orientation="left"
+                    tickFormatter={v => {
+                      if (v >= 1e9) return (v/1e9).toFixed(1)+'M'
+                      if (v >= 1e6) return (v/1e6).toFixed(0)+'jt'
+                      if (v >= 1e3) return (v/1e3).toFixed(0)+'rb'
+                      return v
+                    }}
+                    tick={{ fontSize:11, fill:'#999' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={65}
+                  />
+                  <YAxis
+                    yAxisId="roi"
+                    orientation="right"
+                    tickFormatter={v => v.toFixed(1) + 'x'}
+                    tick={{ fontSize:11, fill:'#999' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={45}
+                  />
+                  <Tooltip
+                    formatter={(v, name) => {
+                      if (name === 'roas') return [v.toFixed(2) + 'x', 'ROI']
+                      return ['Rp ' + Number(v).toLocaleString('id-ID'), name === 'gmv' ? 'GMV' : 'Cost']
+                    }}
+                    contentStyle={{ fontSize:12, borderRadius:8, border:'1px solid #FFE0CC' }}
+                  />
+                  <Legend
+                    formatter={v => v === 'gmv' ? 'GMV (Omzet)' : v === 'biaya' ? 'Cost / Spending' : 'ROI'}
+                  />
+                  <Line
+                    yAxisId="rp"
+                    type="monotone"
+                    dataKey="gmv"
+                    stroke={platformColor.gmv}
+                    strokeWidth={2.5}
+                    dot={{ r:3, fill:platformColor.gmv, strokeWidth:0 }}
+                    activeDot={{ r:5 }}
+                  />
+                  <Line
+                    yAxisId="rp"
+                    type="monotone"
+                    dataKey="biaya"
+                    stroke={platformColor.biaya}
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={{ r:3, fill:platformColor.biaya, strokeWidth:0 }}
+                    activeDot={{ r:5 }}
+                  />
+                  <Line
+                    yAxisId="roi"
+                    type="monotone"
+                    dataKey="roas"
+                    stroke={platformColor.roas}
+                    strokeWidth={2}
+                    dot={{ r:3, fill:platformColor.roas, strokeWidth:0 }}
+                    activeDot={{ r:5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        )
+      })()}
 
       {loading ? (
         <p style={{ color: '#9CA3AF', fontSize: 14 }}>Memuat data...</p>
