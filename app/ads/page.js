@@ -21,6 +21,29 @@ function getWeekRange(weeksAgo = 0) {
   }
 }
 
+function buildGrafikHarian(r1data, r2data, r3data, start, end) {
+  const dates = []
+  const cur = new Date(start)
+  const endDate = new Date(end)
+  while (cur <= endDate) {
+    dates.push(cur.toISOString().split('T')[0])
+    cur.setDate(cur.getDate() + 1)
+  }
+
+  return dates.map(tgl => {
+    const shopeeRow = (r1data || []).filter(r => r.tanggal === tgl)
+    const tiktokRow = (r2data || []).filter(r => r.tanggal === tgl)
+    const metaRow   = (r3data || []).filter(r => r.tanggal === tgl)
+    return {
+      label: tgl.slice(5),
+      shopee_omzet: shopeeRow.reduce((a,b) => a + (Number(b.omzet)||0), 0),
+      tiktok_omzet: tiktokRow.reduce((a,b) => a + (Number(b.omzet)||0), 0),
+      meta_omzet:   metaRow.reduce((a,b)   => a + (Number(b.omzet)||0), 0),
+      total_biaya:  [...shopeeRow,...tiktokRow,...metaRow].reduce((a,b) => a + (Number(b.biaya_iklan)||0), 0),
+    }
+  })
+}
+
 // ─── Format helpers ───────────────────────────────────────
 const fmt    = n => (n == null || n === '') ? '-' : Number(n).toLocaleString('id-ID')
 const fmtRp  = n => (n == null || n === '') ? '-' : 'Rp ' + Number(n).toLocaleString('id-ID')
@@ -212,7 +235,7 @@ export default function AdsPage() {
   const [uploadPlatform, setUploadPlatform] = useState('shopee')
   const [uploadNotif, setUploadNotif] = useState('')
   const [halamanTabel, setHalamanTabel] = useState(1)
-  const [grafikMingguan, setGrafikMingguan] = useState([])
+  const [grafikHarian, setGrafikHarian] = useState([])
   const [anomaliAds, setAnomaliAds] = useState([])
   const [filterStart, setFilterStart] = useState(today)
   const [filterEnd, setFilterEnd] = useState(today)
@@ -251,7 +274,7 @@ export default function AdsPage() {
     }
   }, [])
 
-  useEffect(() => { fetchAll() }, [activeTab])
+  useEffect(() => { fetchAll() }, [activeTab, filterStart, filterEnd])
 
   useEffect(() => { setFilterJenisShopee('semua') }, [activeTab])
 
@@ -270,32 +293,7 @@ export default function AdsPage() {
       meta:   r3.data || [],
     })
 
-    const tabelNama = PLATFORM_CONFIG[activeTab]?.table
-    const allData = [...(r1.data||[]), ...(r2.data||[]), ...(r3.data||[])]
-
-    const grafikData = Array.from({length:8}, (_,i) => {
-      const range = getWeekRange(7-i)
-      const d = new Date(range.from)
-      const startOfYear = new Date(d.getFullYear(),0,1)
-      const weekNum = Math.ceil(((d-startOfYear)/86400000+startOfYear.getDay()+1)/7)
-
-      const filterPlatform = (arr) => arr.filter(r =>
-        r.tanggal >= range.from && r.tanggal <= range.to)
-
-      const shopeeW = filterPlatform(r1.data||[])
-      const tiktokW = filterPlatform(r2.data||[])
-      const metaW = filterPlatform(r3.data||[])
-
-      return {
-        label: `W${weekNum}`,
-        shopee_omzet: shopeeW.reduce((a,b)=>a+(Number(b.omzet)||0),0),
-        tiktok_omzet: tiktokW.reduce((a,b)=>a+(Number(b.omzet)||0),0),
-        meta_omzet: metaW.reduce((a,b)=>a+(Number(b.omzet)||0),0),
-        total_biaya: [...shopeeW,...tiktokW,...metaW]
-          .reduce((a,b)=>a+(Number(b.biaya_iklan)||0),0),
-      }
-    })
-    setGrafikMingguan(grafikData)
+    setGrafikHarian(buildGrafikHarian(r1.data, r2.data, r3.data, filterStart, filterEnd))
 
     const thisWeek = getWeekRange(0)
     const lastWeek = getWeekRange(1)
@@ -822,20 +820,25 @@ export default function AdsPage() {
         ))}
       </div>
 
-      {/* GRAFIK TREN 8 MINGGU */}
-      {grafikMingguan.length > 0 && (
+      {/* GRAFIK TREN HARIAN */}
+      {grafikHarian.length > 0 && (
         <div style={{ background:'#fff', border:'1px solid #FFE0CC',
           borderRadius:12, padding:20, marginBottom:20,
           boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
           <p style={{ margin:'0 0 4px', fontWeight:700,
             fontSize:14, color:'#1A1A1A' }}>
-            Tren Omzet Ads — 8 Minggu Terakhir
+            Tren Omzet Ads — Harian
           </p>
           <p style={{ margin:'0 0 16px', fontSize:12, color:'#999' }}>
-            Shopee · TikTok · Meta · Biaya Iklan
+            {filterStart} s/d {filterEnd} · Shopee · TikTok · Meta · Biaya Iklan
           </p>
+          {grafikHarian.length > 90 ? (
+            <p style={{color:'#999', fontSize:13, textAlign:'center', padding:'40px 0'}}>
+              Rentang terlalu panjang untuk grafik harian. Pilih maksimal 90 hari.
+            </p>
+          ) : (
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={grafikMingguan}
+            <LineChart data={grafikHarian}
               margin={{ top:5, right:10, left:10, bottom:5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#FFF3ED" />
               <XAxis dataKey="label"
@@ -879,6 +882,7 @@ export default function AdsPage() {
                 activeDot={{ r:5 }} />
             </LineChart>
           </ResponsiveContainer>
+          )}
         </div>
       )}
 
