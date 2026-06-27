@@ -128,6 +128,10 @@ const ALL_FIELDS = {
   meta:   ['impresi','cpm','klik','ctr','cpc','view_page','view_page_rate','atc','rasio_atc','pesanan','cvr','biaya_iklan','omzet','roi','cpa','aov'],
 }
 
+const now             = new Date()
+const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+const lastDayOfMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+
 function buildEmpty(platform) {
   const base = { tanggal: new Date().toISOString().split('T')[0], nama_kampanye: '', tipe_kampanye: '', status: 'aktif' }
   ALL_FIELDS[platform].forEach(f => base[f] = '')
@@ -217,7 +221,6 @@ const TABLE_COLS = {
 
 // ─── Komponen utama ───────────────────────────────────────
 export default function AdsPage() {
-  const today = new Date().toISOString().split('T')[0]
   const [activeTab, setActiveTab] = useState('shopee')
   const [data, setData] = useState({ shopee: [], tiktok: [], meta: [] })
   const [loading, setLoading] = useState(true)
@@ -237,8 +240,8 @@ export default function AdsPage() {
   const [halamanTabel, setHalamanTabel] = useState(1)
   const [grafikHarian, setGrafikHarian] = useState([])
   const [anomaliAds, setAnomaliAds] = useState([])
-  const [filterStart, setFilterStart] = useState(today)
-  const [filterEnd, setFilterEnd] = useState(today)
+  const [filterStart, setFilterStart] = useState(firstDayOfMonth)
+  const [filterEnd, setFilterEnd] = useState(lastDayOfMonth)
   const BARIS_PER_HALAMAN = 10
 
   useEffect(() => {
@@ -247,8 +250,8 @@ export default function AdsPage() {
       const platform = params.get('platform')
       if (platform && ['shopee','tiktok','meta'].includes(platform)) {
         setActiveTab(platform)
-        setFilterStart(today)
-        setFilterEnd(today)
+        setFilterStart(firstDayOfMonth)
+        setFilterEnd(lastDayOfMonth)
         setFilterJenisShopee('semua')
         setHalamanTabel(1)
       }
@@ -687,7 +690,12 @@ export default function AdsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111' }}>Ads Reporting</p>
-          <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Full funnel per platform · {filterStart} s/d {filterEnd}</p>
+          <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>
+            Full funnel per platform ·{' '}
+            {filterStart === firstDayOfMonth && filterEnd === lastDayOfMonth
+              ? now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+              : `${filterStart} s/d ${filterEnd}`}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button onClick={() => { setShowUpload(true); setUploadPlatform(activeTab) }}
@@ -726,11 +734,11 @@ export default function AdsPage() {
             border:'1px solid #FFD4B8', fontSize:12,
             color:'#1A1A1A', background:'#fff', outline:'none' }} />
         {(filterStart && filterEnd) && (
-          <button onClick={() => { setFilterStart(today); setFilterEnd(today); setFilterJenisShopee('semua') }}
+          <button onClick={() => { setFilterStart(firstDayOfMonth); setFilterEnd(lastDayOfMonth); setFilterJenisShopee('semua') }}
             style={{ padding:'5px 10px', borderRadius:8, fontSize:11,
               border:'1px solid #FFE0CC', background:'#FFF3ED',
               color:'#FF6B35', cursor:'pointer' }}>
-            ✕ Reset
+            ↺ Reset ke bulan ini
           </button>
         )}
         {activeTab === 'shopee' && (
