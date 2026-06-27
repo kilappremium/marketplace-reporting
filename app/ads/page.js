@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { downloadTemplate, parseExcel } from '../../lib/excelTemplate'
 import {
@@ -243,6 +243,11 @@ export default function AdsPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiText, setAiText]       = useState('')
   const [aiError, setAiError]     = useState('')
+  const [chatOpen, setChatOpen]         = useState(false)
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatInput, setChatInput]       = useState('')
+  const [chatLoading, setChatLoading]   = useState(false)
+  const chatEndRef = useRef(null)
   const [filterStart, setFilterStart] = useState(firstDayOfMonth)
   const [filterEnd, setFilterEnd] = useState(lastDayOfMonth)
   const BARIS_PER_HALAMAN = 10
@@ -286,7 +291,13 @@ export default function AdsPage() {
     setFilterJenisShopee('semua')
     setAiText('')
     setAiError('')
+    setChatMessages([])
+    setChatInput('')
   }, [activeTab])
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
 
   async function fetchAll() {
     setLoading(true)
@@ -430,6 +441,56 @@ Berikan: ringkasan performa iklan, temuan penting (ROI/ROAS, efisiensi biaya, ko
       setAiError('Gagal memuat analisis AI. Coba lagi.')
     }
     setAiLoading(false)
+  }
+
+  function buildKonteksAds() {
+    const cards = summaryCards[activeTab] || []
+    const dataRingkas = cards.map(c => `${c.label}: ${c.value}`).join(', ')
+    const platformLabel = PLATFORM_CONFIG[activeTab].label
+    return `Kamu adalah AI analyst iklan digital untuk platform marketplace Kilap.
+Kamu memiliki data performa iklan berikut dan harus menjawab berdasarkan data ini.
+
+Platform aktif: ${platformLabel}
+Periode: ${filterStart} s/d ${filterEnd}
+${activeTab === 'shopee' && filterJenisShopee !== 'semua' ? `Filter: ${filterJenisShopee}` : ''}
+
+DATA SUMMARY:
+${dataRingkas}
+
+${anomaliAds.length > 0 ? `ANOMALI:\n${anomaliAds.map(a => '- ' + a).join('\n')}` : 'Tidak ada anomali.'}
+
+Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat menjawab. Jika ditanya di luar data yang tersedia, katakan data tersebut tidak tersedia.`
+  }
+
+  async function sendChat() {
+    const msg = chatInput.trim()
+    if (!msg || chatLoading) return
+
+    const userMsg = { role: 'user', content: msg }
+    const newMessages = [...chatMessages, userMsg]
+    setChatMessages(newMessages)
+    setChatInput('')
+    setChatLoading(true)
+
+    try {
+      const konteks = buildKonteksAds()
+      const historyText = [
+        `System: ${konteks}`,
+        ...newMessages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      ].join('\n\n')
+
+      const res  = await fetch('/api/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: historyText }),
+      })
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setChatMessages(prev => [...prev, { role: 'assistant', content: json.text }])
+    } catch (err) {
+      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Maaf, terjadi kesalahan. Silakan coba lagi.', error: true }])
+    }
+    setChatLoading(false)
   }
 
   async function handleFileUpload(e) {
@@ -935,6 +996,119 @@ Berikan: ringkasan performa iklan, temuan penting (ROI/ROAS, efisiensi biaya, ko
         )}
       </div>
 
+      {/* ── AI CHAT ── */}
+      <div style={{ background:'#fff', border:'1px solid #FFE0CC', borderRadius:12, marginBottom:20, boxShadow:'0 2px 8px rgba(255,100,0,0.06)', overflow:'hidden' }}>
+
+        {/* Header — bisa diklik buka/tutup */}
+        <div onClick={() => setChatOpen(o => !o)}
+          style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 20px', cursor:'pointer', userSelect:'none', background: chatOpen ? '#FFF8F5' : '#fff', borderBottom: chatOpen ? '1px solid #FFE0CC' : 'none' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#FF6B35,#FF8C00)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>💬</div>
+            <div>
+              <p style={{ margin:0, fontWeight:700, fontSize:14, color:'#1A1A1A' }}>Tanya AI tentang data {PLATFORM_CONFIG[activeTab].label}</p>
+              <p style={{ margin:0, fontSize:11, color:'#999' }}>
+                {chatMessages.length > 0 ? `${Math.floor(chatMessages.length/2)} pertanyaan dijawab` : 'Klik untuk mulai tanya jawab'}
+              </p>
+            </div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            {chatMessages.length > 0 && (
+              <button onClick={e => { e.stopPropagation(); setChatMessages([]); setChatInput('') }}
+                style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid #FFD4B8', background:'#fff', color:'#FF6B35', cursor:'pointer' }}>
+                Reset chat
+              </button>
+            )}
+            <span style={{ fontSize:18, color:'#FF6B35', fontWeight:300, transition:'transform 0.2s', display:'inline-block', transform: chatOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>⌄</span>
+          </div>
+        </div>
+
+        {/* Body chat */}
+        {chatOpen && (
+          <div>
+            {/* Riwayat pesan */}
+            <div style={{ maxHeight:360, overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
+
+              {/* Contoh pertanyaan awal */}
+              {chatMessages.length === 0 && (
+                <div style={{ textAlign:'center', padding:'16px 0' }}>
+                  <p style={{ fontSize:13, color:'#999', margin:'0 0 12px' }}>Contoh pertanyaan:</p>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8, justifyContent:'center' }}>
+                    {[
+                      activeTab === 'shopee' ? 'Kenapa CTR Iklan Produk rendah?' : activeTab === 'tiktok' ? 'Bagaimana efisiensi budget TikTok?' : 'Analisis CPM Meta bulan ini',
+                      'Apa penyebab ROI turun?',
+                      'Campaign mana yang paling efisien?',
+                      'Rekomendasi untuk meningkatkan konversi',
+                      'Bandingkan performa vs periode lalu',
+                    ].map(q => (
+                      <button key={q} onClick={() => setChatInput(q)}
+                        style={{ fontSize:12, padding:'6px 14px', borderRadius:20, border:'1px solid #FFD4B8', background:'#FFF8F5', color:'#FF6B35', cursor:'pointer' }}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pesan */}
+              {chatMessages.map((msg, i) => (
+                <div key={i} style={{ display:'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  {msg.role === 'assistant' && (
+                    <div style={{ width:28, height:28, borderRadius:6, background:'linear-gradient(135deg,#FF6B35,#FF8C00)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, marginRight:8, flexShrink:0, alignSelf:'flex-end' }}>✦</div>
+                  )}
+                  <div style={{
+                    maxWidth:'75%', padding:'10px 14px',
+                    borderRadius: msg.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                    background: msg.role === 'user' ? 'linear-gradient(135deg,#FF6B35,#FF8C00)' : msg.error ? '#FEF2F2' : '#FFF8F5',
+                    color: msg.role === 'user' ? '#fff' : msg.error ? '#991B1B' : '#374151',
+                    fontSize:13, lineHeight:1.6,
+                    border: msg.role === 'user' ? 'none' : '1px solid #FFE0CC',
+                  }}
+                    dangerouslySetInnerHTML={{ __html: msg.role === 'assistant'
+                      ? msg.content
+                          .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#FF6B35">$1</strong>')
+                          .replace(/\n/g, '<br/>')
+                      : msg.content
+                    }}
+                  />
+                  {msg.role === 'user' && (
+                    <div style={{ width:28, height:28, borderRadius:6, background:'#FFE0CC', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, marginLeft:8, flexShrink:0, alignSelf:'flex-end', color:'#FF6B35', fontWeight:700 }}>K</div>
+                  )}
+                </div>
+              ))}
+
+              {/* Loading */}
+              {chatLoading && (
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{ width:28, height:28, borderRadius:6, background:'linear-gradient(135deg,#FF6B35,#FF8C00)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13 }}>✦</div>
+                  <div style={{ padding:'10px 14px', borderRadius:'12px 12px 12px 2px', background:'#FFF8F5', border:'1px solid #FFE0CC', display:'flex', gap:4, alignItems:'center' }}>
+                    {[0,1,2].map(i => (
+                      <div key={i} style={{ width:6, height:6, borderRadius:'50%', background:'#FF6B35', animation:'pulse 1.2s ease-in-out infinite', animationDelay:`${i*0.2}s` }}/>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Input */}
+            <div style={{ padding:'12px 20px', borderTop:'1px solid #FFE0CC', background:'#FAFAFA', display:'flex', gap:10, alignItems:'flex-end' }}>
+              <textarea
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat() } }}
+                placeholder="Tanya tentang performa iklan... (Enter untuk kirim)"
+                rows={2}
+                style={{ flex:1, padding:'10px 14px', borderRadius:10, border:'1px solid #FFD4B8', fontSize:13, color:'#1A1A1A', background:'#fff', outline:'none', resize:'none', fontFamily:'inherit', lineHeight:1.5 }}
+              />
+              <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
+                style={{ padding:'10px 18px', borderRadius:10, border:'none', fontSize:13, fontWeight:600, height:42, cursor: chatLoading || !chatInput.trim() ? 'default' : 'pointer', background: chatLoading || !chatInput.trim() ? '#FFE0CC' : 'linear-gradient(135deg,#FF6B35,#FF8C00)', color: chatLoading || !chatInput.trim() ? '#FFB899' : '#fff', whiteSpace:'nowrap' }}>
+                Kirim ↑
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* GRAFIK TREN HARIAN PER PLATFORM */}
       {(() => {
         const chartData = grafikHarian[activeTab] || []
@@ -1175,7 +1349,10 @@ Berikan: ringkasan performa iklan, temuan penting (ROI/ROAS, efisiensi biaya, ko
           </div>
         </>
       )}
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg) } }
+        @keyframes pulse { 0%,100%{opacity:0.3;transform:scale(0.8)} 50%{opacity:1;transform:scale(1)} }
+      `}</style>
     </div>
   )
 }
