@@ -31,7 +31,7 @@ const MENU = [
   {
     group: 'Lainnya',
     items: [
-      { label: 'Input Data', href: '/input', icon: '✦' },
+      { label: 'Pengaturan', href: '/pengaturan', icon: '⚙' },
     ]
   },
 ]
