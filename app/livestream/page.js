@@ -351,6 +351,42 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
     return true
   })
 
+  // ─── Data periode sebelumnya ──────────────────────────
+  const filteredPrev = (() => {
+    if (filterStart && filterEnd) {
+      const start  = new Date(filterStart)
+      const end    = new Date(filterEnd)
+      const durasi = Math.round((end - start) / (1000*60*60*24)) + 1
+      const prevEnd   = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1)
+      const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - durasi + 1)
+      const ps = prevStart.toISOString().split('T')[0]
+      const pe = prevEnd.toISOString().split('T')[0]
+      return data.filter(r => {
+        if (filterHost     && r.nama_host !== filterHost)     return false
+        if (filterPlatform && r.platform  !== filterPlatform) return false
+        if (filterSesi     && r.jadwal_sesi !== filterSesi)   return false
+        return r.tanggal >= ps && r.tanggal <= pe
+      })
+    }
+    // Default: bandingkan dengan periode sama panjang sebelumnya
+    // Jika tidak ada filter tanggal, ambil data 30 hari sebelum data tertua di filtered
+    if (filtered.length === 0) return []
+    const dates   = filtered.map(r => r.tanggal).sort()
+    const oldest  = dates[0]
+    const newest  = dates[dates.length - 1]
+    const durasi  = Math.round((new Date(newest) - new Date(oldest)) / (1000*60*60*24)) + 1
+    const prevEnd   = new Date(oldest); prevEnd.setDate(prevEnd.getDate() - 1)
+    const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - durasi + 1)
+    const ps = prevStart.toISOString().split('T')[0]
+    const pe = prevEnd.toISOString().split('T')[0]
+    return data.filter(r => {
+      if (filterHost     && r.nama_host !== filterHost)     return false
+      if (filterPlatform && r.platform  !== filterPlatform) return false
+      if (filterSesi     && r.jadwal_sesi !== filterSesi)   return false
+      return r.tanggal >= ps && r.tanggal <= pe
+    })
+  })()
+
   // ─── Summary metrics ──────────────────────────────────
   const totalGmv     = sum(filtered, 'gmv')
   const totalDurasi  = sum(filtered, 'durasi_jam')
@@ -365,6 +401,25 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
     ? sum(filtered,'ctr_tiktok') / filtered.length : 0
   const avgGpm       = filtered.length 
     ? sum(filtered,'gpm_tayangan') / filtered.length : 0
+
+  // ─── Metrik periode sebelumnya ────────────────────────
+  const prevTotalGmv     = sum(filteredPrev, 'gmv')
+  const prevTotalDurasi  = sum(filteredPrev, 'durasi_jam')
+  const prevTotalPesanan = sum(filteredPrev, 'pesanan')
+  const prevTotalSesi    = filteredPrev.length
+  const prevTotalPenonton = sum(filteredPrev, 'penonton')
+  const prevAvgGmvPerJam = prevTotalDurasi > 0 ? prevTotalGmv / prevTotalDurasi : 0
+  const prevAvgCvr       = prevTotalPesanan && prevTotalPenonton
+    ? (prevTotalPesanan / prevTotalPenonton * 100) : 0
+  const prevAvgErr       = filteredPrev.length
+    ? sum(filteredPrev, 'err_tiktok') / filteredPrev.length : 0
+  const prevAvgCtr       = filteredPrev.length
+    ? sum(filteredPrev, 'ctr_tiktok') / filteredPrev.length : 0
+  const prevAvgGpm       = filteredPrev.length
+    ? sum(filteredPrev, 'gpm_tayangan') / filteredPrev.length : 0
+
+  const growthPct = (curr, prev) => prev > 0
+    ? ((curr - prev) / prev * 100).toFixed(1) : null
 
   // ─── Sales per Host ────────────────────────────────────
   const perHost = HOSTS.map(host => {
@@ -454,6 +509,25 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
           </button>
         </div>
       </div>
+    )
+  }
+
+  function GrowthBadge({ curr, prev }) {
+    const g = growthPct(curr, prev)
+    if (g === null) return null
+    const up = Number(g) >= 0
+    return (
+      <span style={{
+        fontSize: 11, fontWeight: 600,
+        padding: '2px 7px', borderRadius: 20,
+        display: 'inline-flex', alignItems: 'center', gap: 3,
+        marginTop: 6,
+        background: up ? '#DCFCE7' : '#FEE2E2',
+        color:      up ? '#166534' : '#991B1B',
+      }}>
+        {up ? '▲' : '▼'} {Math.abs(Number(g))}%
+        <span style={{ fontWeight: 400, opacity: 0.75, fontSize: 10 }}>vs sebelumnya</span>
+      </span>
     )
   }
 
@@ -714,38 +788,36 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
       ) : (
         <>
           {/* ── SUMMARY CARDS ── */}
-          <div style={{ display:'grid',
-            gridTemplateColumns:'repeat(auto-fit, minmax(160px,1fr))',
-            gap:12, marginBottom:20 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px,1fr))', gap:12, marginBottom:20 }}>
             {[
-              { label:'Omzet GMV', value: fmtRp(totalGmv), big: true },
-              { label:'Total Sesi', value: fmt(totalSesi) },
-              { label:'Total Durasi (Jam)', value: fmt(totalDurasi.toFixed(1)) },
-              { label:'GMV per Jam', value: fmtRp(avgGmvPerJam.toFixed(0)) },
-              { label:'Total Pesanan', value: fmt(totalPesanan) },
-              { label:'Total Penonton', value: fmt(sum(filtered,'penonton')) },
-              { label:'Conv Rate', value: fmtPct(avgCvr.toFixed(2)) },
-              { label:'Avg ERR TikTok', value: fmtPct(avgErr.toFixed(2)) },
-              { label:'Avg CTR TikTok', value: fmtPct(avgCtr.toFixed(2)) },
-              { label:'Avg GPM', value: fmtRp(avgGpm.toFixed(0)) },
+              { label:'Omzet GMV',        value: fmtRp(totalGmv),                    curr: totalGmv,        prev: prevTotalGmv,        big: true },
+              { label:'Total Sesi',       value: fmt(totalSesi),                      curr: totalSesi,       prev: prevTotalSesi },
+              { label:'Total Durasi (Jam)', value: fmt(totalDurasi.toFixed(1)),       curr: totalDurasi,     prev: prevTotalDurasi },
+              { label:'GMV per Jam',      value: fmtRp(avgGmvPerJam.toFixed(0)),     curr: avgGmvPerJam,    prev: prevAvgGmvPerJam },
+              { label:'Total Pesanan',    value: fmt(totalPesanan),                   curr: totalPesanan,    prev: prevTotalPesanan },
+              { label:'Total Penonton',   value: fmt(sum(filtered,'penonton')),       curr: sum(filtered,'penonton'), prev: prevTotalPenonton },
+              { label:'Conv Rate',        value: fmtPct(avgCvr.toFixed(2)),           curr: avgCvr,          prev: prevAvgCvr },
+              { label:'Avg ERR TikTok',   value: fmtPct(avgErr.toFixed(2)),           curr: avgErr,          prev: prevAvgErr },
+              { label:'Avg CTR TikTok',   value: fmtPct(avgCtr.toFixed(2)),           curr: avgCtr,          prev: prevAvgCtr },
+              { label:'Avg GPM',          value: fmtRp(avgGpm.toFixed(0)),            curr: avgGpm,          prev: prevAvgGpm },
             ].map(m => (
               <div key={m.label} style={{
-                background: m.big
-                  ? 'linear-gradient(135deg,#FF6B35,#FF8C00)'
-                  : '#fff',
+                background: m.big ? 'linear-gradient(135deg,#FF6B35,#FF8C00)' : '#fff',
                 border: m.big ? 'none' : '1px solid #FFE0CC',
-                borderRadius:10, padding:'14px 16px',
-                boxShadow:'0 1px 4px rgba(255,100,0,0.06)',
+                borderRadius: 10, padding: '14px 16px',
+                boxShadow: '0 1px 4px rgba(255,100,0,0.06)',
+                display: 'flex', flexDirection: 'column',
               }}>
                 <p style={{ margin:'0 0 4px', fontSize:11, fontWeight:500,
                   color: m.big ? 'rgba(255,255,255,0.8)' : '#999' }}>
                   {m.label}
                 </p>
-                <p style={{ margin:0, fontSize: m.big ? 22 : 18,
-                  fontWeight:700,
+                <p style={{ margin:0, fontSize: m.big ? 22 : 18, fontWeight:700,
                   color: m.big ? '#fff' : '#1A1A1A' }}>
                   {m.value}
                 </p>
+                {!m.big && <GrowthBadge curr={m.curr} prev={m.prev} />}
+                {m.big && <GrowthBadge curr={m.curr} prev={m.prev} />}
               </div>
             ))}
           </div>
