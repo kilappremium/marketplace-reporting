@@ -9,6 +9,8 @@ import {
 // ─── Constants ────────────────────────────────────────────
 const HOSTS = ['Safa','Mery','Ira','Fidella','Huni','Ilma','Afi','Niken','Dyna','Bita','Davina']
 const PLATFORMS = ['Shopee','Tiktok']
+const BRANDS = ['Kilap Premium', 'Purfress']
+
 const JADWAL_SESI = [
   'SHOPEE | Shift 1 (06.00 - 12.00)',
   'SHOPEE | Shift 2 (12.00 - 18.00)',
@@ -24,6 +26,7 @@ const EMPTY_FORM = {
   tanggal: new Date().toISOString().split('T')[0],
   nama_host: '',
   platform: '',
+  brand: '',
   jadwal_sesi: '',
   durasi_jam: '',
   gmv: '',
@@ -84,6 +87,7 @@ export default function LivestreamPage() {
   // Filter states
   const [filterHost, setFilterHost]         = useState('')
   const [filterPlatform, setFilterPlatform] = useState('')
+  const [filterBrand, setFilterBrand] = useState('')
   const [filterSesi, setFilterSesi]         = useState('')
   const [filterStart, setFilterStart]       = useState('')
   const [filterEnd, setFilterEnd]           = useState('')
@@ -157,7 +161,7 @@ export default function LivestreamPage() {
   }
 
   async function handleSubmit() {
-    const required = ['tanggal','nama_host','platform','jadwal_sesi',
+    const required = ['tanggal','nama_host','platform','brand','jadwal_sesi',
       'durasi_jam','gmv','pesanan','penonton']
     for (const f of required) {
       if (!form[f]) {
@@ -170,6 +174,7 @@ export default function LivestreamPage() {
       tanggal: form.tanggal,
       nama_host: form.nama_host,
       platform: form.platform,
+      brand: form.brand || '',
       jadwal_sesi: form.jadwal_sesi,
       durasi_jam: Number(form.durasi_jam) || 0,
       gmv: Number(form.gmv) || 0,
@@ -345,6 +350,7 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
   const filtered = data.filter(r => {
     if (filterHost && r.nama_host !== filterHost) return false
     if (filterPlatform && r.platform !== filterPlatform) return false
+    if (filterBrand && r.brand !== filterBrand) return false
     if (filterSesi && r.jadwal_sesi !== filterSesi) return false
     if (filterStart && r.tanggal < filterStart) return false
     if (filterEnd && r.tanggal > filterEnd) return false
@@ -364,6 +370,7 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
       return data.filter(r => {
         if (filterHost     && r.nama_host !== filterHost)     return false
         if (filterPlatform && r.platform  !== filterPlatform) return false
+        if (filterBrand    && r.brand     !== filterBrand)    return false
         if (filterSesi     && r.jadwal_sesi !== filterSesi)   return false
         return r.tanggal >= ps && r.tanggal <= pe
       })
@@ -382,6 +389,7 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
     return data.filter(r => {
       if (filterHost     && r.nama_host !== filterHost)     return false
       if (filterPlatform && r.platform  !== filterPlatform) return false
+      if (filterBrand    && r.brand     !== filterBrand)    return false
       if (filterSesi     && r.jadwal_sesi !== filterSesi)   return false
       return r.tanggal >= ps && r.tanggal <= pe
     })
@@ -591,6 +599,13 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
                   {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </Field>
+              <Field label="Brand" required>
+                <select name="brand" value={form.brand}
+                  onChange={handleChange} style={selectStyle}>
+                  <option value="">-- Pilih Brand --</option>
+                  {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </Field>
               <Field label="Jadwal Sesi" required>
                 <select name="jadwal_sesi" value={form.jadwal_sesi}
                   onChange={handleChange} style={selectStyle}>
@@ -748,6 +763,15 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
           </div>
           <div>
             <label style={{ fontSize:11, color:'#FF8C00',
+              fontWeight:600, display:'block', marginBottom:4 }}>Brand</label>
+            <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)}
+              style={selectStyle}>
+              <option value="">Semua brand</option>
+              {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize:11, color:'#FF8C00',
               fontWeight:600, display:'block', marginBottom:4 }}>Sesi</label>
             <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)}
               style={selectStyle}>
@@ -771,7 +795,7 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
           </div>
           <div style={{ display:'flex', alignItems:'flex-end' }}>
             <button onClick={() => {
-              setFilterHost(''); setFilterPlatform('');
+              setFilterHost(''); setFilterPlatform(''); setFilterBrand('');
               setFilterSesi(''); setFilterStart(''); setFilterEnd('')
             }}
               style={{ width:'100%', padding:'8px 12px', borderRadius:8,
@@ -1246,12 +1270,12 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                   <thead>
                     <tr style={{ background:'#FFF3ED' }}>
-                      {['Tanggal','Host','Platform','Sesi',
+                      {['Tanggal','Host','Platform','Brand','Sesi',
                         'Durasi (Jam)','GMV','GMV/Jam',
                         'Pesanan','Penonton','CTR','ERR',
                         'GPM','Screenshot','Aksi'].map(h => (
                         <th key={h} style={{
-                          textAlign: ['Tanggal','Host','Platform','Sesi'].includes(h)
+                          textAlign: ['Tanggal','Host','Platform','Brand','Sesi'].includes(h)
                             ? 'left' : 'right',
                           padding:'10px 12px', color:'#FF6B35',
                           fontWeight:500, fontSize:11,
@@ -1295,6 +1319,12 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
                                 ? '#993C1D' : '#3C3489',
                               fontWeight:500,
                             }}>{row.platform}</span>
+                          </td>
+                          <td style={{ padding:'8px 12px' }}>
+                            <span style={{
+                              fontSize:11, padding:'2px 8px', borderRadius:20,
+                              background:'#F0FDF4', color:'#166534', fontWeight:500,
+                            }}>{row.brand || '-'}</span>
                           </td>
                           <td style={{ padding:'8px 12px', color:'#666',
                             fontSize:11, maxWidth:160,
