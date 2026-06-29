@@ -16,6 +16,7 @@ const sum    = (arr, f) => arr.reduce((a, b) => a + (Number(b[f]) || 0), 0)
 const avg    = (arr, f) => arr.length ? sum(arr, f) / arr.length : 0
 
 const CHANNELS = ['Semua Channel', 'Shopee', 'TikTok', 'Tokopedia', 'Lazada']
+const BRANDS = ['Semua Brand', 'Beenteles', 'Kilap Premium', 'Purfress']
 
 const EMPTY_PENJUALAN = {
   tanggal: new Date().toISOString().split('T')[0],
@@ -61,6 +62,7 @@ export default function DashboardPage() {
 
   // ─── Filter channel ───────────────────────────────────
   const [filterChannel, setFilterChannel] = useState('Semua Channel')
+  const [filterBrand, setFilterBrand] = useState('Semua Brand')
 
   // ─── Upload Excel state ───────────────────────────────
   const [uploadLoading, setUploadLoading] = useState(false)
@@ -93,11 +95,14 @@ export default function DashboardPage() {
 
   // ─── Filter by periode ────────────────────────────────
   function filterByPeriod(arr) {
-    const filtered = filterStart && filterEnd
+    let filtered = filterStart && filterEnd
       ? arr.filter(r => r.tanggal >= filterStart && r.tanggal <= filterEnd)
       : arr.filter(r => r.tanggal >= thisWeek.from && r.tanggal <= thisWeek.to)
     if (filterChannel && filterChannel !== 'Semua Channel') {
-      return filtered.filter(r => (r.channel || r.platform || '').toLowerCase() === filterChannel.toLowerCase())
+      filtered = filtered.filter(r => (r.channel || r.platform || '').toLowerCase() === filterChannel.toLowerCase())
+    }
+    if (filterBrand && filterBrand !== 'Semua Brand') {
+      filtered = filtered.filter(r => (r.brand || '').toLowerCase() === filterBrand.toLowerCase())
     }
     return filtered
   }
@@ -120,7 +125,10 @@ export default function DashboardPage() {
       base = arr.filter(r => r.tanggal >= lastWeek.from && r.tanggal <= lastWeek.to)
     }
     if (filterChannel && filterChannel !== 'Semua Channel') {
-      return base.filter(r => (r.channel || r.platform || '').toLowerCase() === filterChannel.toLowerCase())
+      base = base.filter(r => (r.channel || r.platform || '').toLowerCase() === filterChannel.toLowerCase())
+    }
+    if (filterBrand && filterBrand !== 'Semua Brand') {
+      base = base.filter(r => (r.brand || '').toLowerCase() === filterBrand.toLowerCase())
     }
     return base
   }
@@ -161,7 +169,7 @@ export default function DashboardPage() {
       tiktok: filterComparePeriod(allRawAds.tiktok),
       meta:   filterComparePeriod(allRawAds.meta),
     })
-  }, [filterStart, filterEnd, filterChannel, allRawAffiliate, allRawLive, allRawAds])
+  }, [filterStart, filterEnd, filterChannel, filterBrand, allRawAffiliate, allRawLive, allRawAds])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -337,9 +345,10 @@ export default function DashboardPage() {
       ? r.tanggal >= filterStart && r.tanggal <= filterEnd
       : r.tanggal >= thisWeek.from && r.tanggal <= thisWeek.to
     const inChannel = !filterChannel || filterChannel === 'Semua Channel'
-      ? true
-      : r.channel?.toLowerCase() === filterChannel.toLowerCase()
-    return inPeriod && inChannel
+      ? true : r.channel?.toLowerCase() === filterChannel.toLowerCase()
+    const inBrand = !filterBrand || filterBrand === 'Semua Brand'
+      ? true : (r.brand || '').toLowerCase() === filterBrand.toLowerCase()
+    return inPeriod && inChannel && inBrand
   })
 
   const spVisitor        = sum(penjualanFiltered,'visitor')
@@ -372,7 +381,9 @@ export default function DashboardPage() {
       : r.tanggal >= lastWeek.from && r.tanggal <= lastWeek.to
     const inChannel = !filterChannel || filterChannel === 'Semua Channel'
       ? true : r.channel?.toLowerCase() === filterChannel.toLowerCase()
-    return inPeriod && inChannel
+    const inBrand = !filterBrand || filterBrand === 'Semua Brand'
+      ? true : (r.brand || '').toLowerCase() === filterBrand.toLowerCase()
+    return inPeriod && inChannel && inBrand
   })
 
   const prevSpVisitor   = sum(penjualanPrevFiltered, 'visitor')
@@ -631,36 +642,94 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
         </div>
       )}
 
-      {/* ── FILTER BARIS ── */}
-      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:20,flexWrap:'wrap'}}>
-        <span style={{fontSize:12,color:'#999',whiteSpace:'nowrap'}}>Periode:</span>
-        <input type="date" value={filterStart} onChange={e=>setFilterStart(e.target.value)}
-          style={{padding:'6px 10px',borderRadius:8,border:'1px solid #FFD4B8',fontSize:12,color:'#1A1A1A',background:'#fff',outline:'none'}}/>
-        <span style={{fontSize:12,color:'#ccc'}}>—</span>
-        <input type="date" value={filterEnd} onChange={e=>setFilterEnd(e.target.value)}
-          style={{padding:'6px 10px',borderRadius:8,border:'1px solid #FFD4B8',fontSize:12,color:'#1A1A1A',background:'#fff',outline:'none'}}/>
+      {/* ── FILTER CARD ── */}
+      <div style={{
+        background: '#fff', border: '1px solid #FFE0CC',
+        borderRadius: 12, padding: 20, marginBottom: 20,
+        boxShadow: '0 1px 4px rgba(255,100,0,0.06)',
+      }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 12 }}>
 
-        {/* ── Filter Channel ── */}
-        <span style={{fontSize:12,color:'#999',whiteSpace:'nowrap',marginLeft:8}}>Channel:</span>
-        <select value={filterChannel} onChange={e=>setFilterChannel(e.target.value)}
-          style={{
-            padding:'6px 28px 6px 12px', borderRadius:8, fontSize:12,
-            border:'1px solid #FFD4B8', background:'#fff', color:'#1A1A1A',
-            cursor:'pointer', outline:'none', appearance:'none',
-            backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23FF6B35' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
-            backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center',
-          }}>
-          {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+          {/* Brand */}
+          <div>
+            <label style={{ fontSize:11, color:'#FF8C00', fontWeight:600, display:'block', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.05em' }}>Brand</label>
+            <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)}
+              style={{
+                width:'100%', padding:'8px 12px', borderRadius:8,
+                border:'1px solid #FFD4B8', fontSize:13, color:'#1A1A1A',
+                background:'#fff', cursor:'pointer', outline:'none',
+                appearance:'none',
+                backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23FF6B35' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center',
+              }}>
+              {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
 
+          {/* Channel */}
+          <div>
+            <label style={{ fontSize:11, color:'#FF8C00', fontWeight:600, display:'block', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.05em' }}>Channel</label>
+            <select value={filterChannel} onChange={e => setFilterChannel(e.target.value)}
+              style={{
+                width:'100%', padding:'8px 12px', borderRadius:8,
+                border:'1px solid #FFD4B8', fontSize:13, color:'#1A1A1A',
+                background:'#fff', cursor:'pointer', outline:'none',
+                appearance:'none',
+                backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23FF6B35' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center',
+              }}>
+              {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* Periode Start */}
+          <div>
+            <label style={{ fontSize:11, color:'#FF8C00', fontWeight:600, display:'block', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.05em' }}>Dari Tanggal</label>
+            <input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)}
+              style={{
+                width:'100%', padding:'8px 12px', borderRadius:8,
+                border:'1px solid #FFD4B8', fontSize:13, color:'#1A1A1A',
+                background:'#fff', outline:'none', boxSizing:'border-box',
+              }} />
+          </div>
+
+          {/* Periode End */}
+          <div>
+            <label style={{ fontSize:11, color:'#FF8C00', fontWeight:600, display:'block', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.05em' }}>Sampai Tanggal</label>
+            <input type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)}
+              style={{
+                width:'100%', padding:'8px 12px', borderRadius:8,
+                border:'1px solid #FFD4B8', fontSize:13, color:'#1A1A1A',
+                background:'#fff', outline:'none', boxSizing:'border-box',
+              }} />
+          </div>
+
+          {/* Tombol Reset */}
+          <div style={{ display:'flex', alignItems:'flex-end' }}>
+            <button onClick={() => {
+              setFilterStart(''); setFilterEnd('')
+              setFilterChannel('Semua Channel')
+              setFilterBrand('Semua Brand')
+            }}
+              style={{
+                width:'100%', padding:'8px 12px', borderRadius:8,
+                border:'1px solid #FFD4B8', background:'#fff',
+                color:'#FF6B35', cursor:'pointer', fontSize:12,
+                fontWeight:500,
+              }}>
+              Reset Filter
+            </button>
+          </div>
+        </div>
+
+        {/* Info periode aktif */}
         {(filterStart && filterEnd) && (
-          <button onClick={()=>{setFilterStart('');setFilterEnd('');setFilterChannel('Semua Channel')}}
-            style={{padding:'5px 10px',borderRadius:8,fontSize:11,border:'1px solid #FFE0CC',background:'#FFF3ED',color:'#FF6B35',cursor:'pointer',whiteSpace:'nowrap'}}>
-            ✕ Reset
-          </button>
-        )}
-        {(filterStart && filterEnd) && (
-          <span style={{fontSize:11,color:'#FFB899',whiteSpace:'nowrap'}}>vs {compareLabel}</span>
+          <div style={{ marginTop:12, padding:'8px 12px', background:'#FFF8F5', borderRadius:8, border:'1px solid #FFE0CC', fontSize:12, color:'#FF6B35', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+            <span>📅 Periode aktif: <strong>{filterStart} s/d {filterEnd}</strong></span>
+            <span style={{ color:'#FFB899' }}>vs {compareLabel}</span>
+            {filterBrand !== 'Semua Brand' && <span style={{ background:'#FFF3ED', padding:'2px 8px', borderRadius:20, fontWeight:600 }}>Brand: {filterBrand}</span>}
+            {filterChannel !== 'Semua Channel' && <span style={{ background:'#FFF3ED', padding:'2px 8px', borderRadius:20, fontWeight:600 }}>Channel: {filterChannel}</span>}
+          </div>
         )}
       </div>
 
@@ -755,11 +824,18 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
                   {periodeLabel}{filterChannel && filterChannel!=='Semua Channel' ? ` · ${filterChannel}` : ''}
                 </p>
               </div>
-              {filterChannel && filterChannel !== 'Semua Channel' && (
-                <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#FFF3ED',color:'#FF6B35',fontWeight:600,border:'1px solid #FFE0CC'}}>
-                  Filter: {filterChannel}
-                </span>
-              )}
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {filterChannel && filterChannel !== 'Semua Channel' && (
+                  <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#FFF3ED',color:'#FF6B35',fontWeight:600,border:'1px solid #FFE0CC'}}>
+                    Channel: {filterChannel}
+                  </span>
+                )}
+                {filterBrand && filterBrand !== 'Semua Brand' && (
+                  <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#FFF3ED',color:'#FF6B35',fontWeight:600,border:'1px solid #FFE0CC'}}>
+                    Brand: {filterBrand}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12}}>
