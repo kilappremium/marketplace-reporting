@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import * as XLSX from 'xlsx'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend
+  Tooltip, ResponsiveContainer
 } from 'recharts'
 
 // ─── Format helpers ───────────────────────────────────────
@@ -547,30 +547,14 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
   const grafikDataHarian = (() => {
     if (!filterStart || !filterEnd) return []
 
-    const allCombined = [
-      ...allRawAffiliate.map(r => ({...r, source:'affiliate'})),
-      ...allRawLive.map(r => ({...r, source:'live'})),
-    ]
-
-    const filtered = allCombined.filter(r =>
+    const filtered = (dataPenjualan || []).filter(r =>
       r.tanggal >= filterStart && r.tanggal <= filterEnd)
 
     const grouped = {}
     filtered.forEach(r => {
       const tgl = r.tanggal
-      if (!grouped[tgl]) grouped[tgl] = { tgl, gmv_affiliate:0, gmv_live:0, biaya_ads:0 }
-      if (r.source === 'affiliate') grouped[tgl].gmv_affiliate += Number(r.gmv)||0
-      if (r.source === 'live') grouped[tgl].gmv_live += Number(r.gmv)||0
-    })
-
-    const allAdsFlat = [
-      ...allRawAds.shopee, ...allRawAds.tiktok, ...allRawAds.meta
-    ].filter(r => r.tanggal >= filterStart && r.tanggal <= filterEnd)
-
-    allAdsFlat.forEach(r => {
-      const tgl = r.tanggal
-      if (!grouped[tgl]) grouped[tgl] = { tgl, gmv_affiliate:0, gmv_live:0, biaya_ads:0 }
-      grouped[tgl].biaya_ads += Number(r.biaya_iklan)||0
+      if (!grouped[tgl]) grouped[tgl] = { tgl, gmv: 0 }
+      grouped[tgl].gmv += Number(r.gmv) || 0
     })
 
     return Object.values(grouped)
@@ -586,30 +570,14 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
     const fromStr = `${tahun}-${String(bulan+1).padStart(2,'0')}-01`
     const toStr = today.toISOString().split('T')[0]
 
-    const allCombined = [
-      ...allRawAffiliate.map(r => ({...r, source:'affiliate'})),
-      ...allRawLive.map(r => ({...r, source:'live'})),
-    ]
-
-    const filtered = allCombined.filter(r =>
+    const filtered = (dataPenjualan || []).filter(r =>
       r.tanggal >= fromStr && r.tanggal <= toStr)
 
     const grouped = {}
     filtered.forEach(r => {
       const tgl = r.tanggal
-      if (!grouped[tgl]) grouped[tgl] = { tgl, gmv_affiliate:0, gmv_live:0, biaya_ads:0 }
-      if (r.source === 'affiliate') grouped[tgl].gmv_affiliate += Number(r.gmv)||0
-      if (r.source === 'live') grouped[tgl].gmv_live += Number(r.gmv)||0
-    })
-
-    const allAdsFlat = [
-      ...allRawAds.shopee, ...allRawAds.tiktok, ...allRawAds.meta
-    ].filter(r => r.tanggal >= fromStr && r.tanggal <= toStr)
-
-    allAdsFlat.forEach(r => {
-      const tgl = r.tanggal
-      if (!grouped[tgl]) grouped[tgl] = { tgl, gmv_affiliate:0, gmv_live:0, biaya_ads:0 }
-      grouped[tgl].biaya_ads += Number(r.biaya_iklan)||0
+      if (!grouped[tgl]) grouped[tgl] = { tgl, gmv: 0 }
+      grouped[tgl].gmv += Number(r.gmv) || 0
     })
 
     return Object.values(grouped)
@@ -1058,20 +1026,23 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
             <p style={{margin:'0 0 4px',fontWeight:700,fontSize:14,color:'#1A1A1A'}}>{grafikTitle}</p>
             <p style={{margin:'0 0 16px',fontSize:12,color:'#999'}}>
               {(filterStart && filterEnd)
-                ? `Data harian dalam periode terpilih`
-                : `Data harian dari tanggal 1 sampai hari ini`}
+                ? `Total GMV harian dari penjualan_harian`
+                : `Total GMV harian dari tanggal 1 sampai hari ini`}
             </p>
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={grafikDataFinal} margin={{top:5,right:10,left:10,bottom:5}}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#FFF3ED"/>
                 <XAxis dataKey="label" tick={{fontSize:11,fill:'#999'}} tickLine={false} axisLine={{stroke:'#FFE0CC'}}/>
                 <YAxis tickFormatter={fmtAxis} tick={{fontSize:11,fill:'#999'}} tickLine={false} axisLine={false} width={60}/>
-                <Tooltip formatter={(v,name)=>['Rp '+Number(v).toLocaleString('id-ID'),name==='gmv_affiliate'?'GMV Affiliate':name==='gmv_live'?'GMV Livestream':name==='biaya_ads'?'Biaya Ads':'Omzet Ads']}
-                  contentStyle={{fontSize:12,borderRadius:8,border:'1px solid #FFE0CC'}}/>
-                <Legend formatter={v=>v==='gmv_affiliate'?'GMV Affiliate':v==='gmv_live'?'GMV Livestream':v==='biaya_ads'?'Biaya Ads':'Omzet Ads'}/>
-                <Line type="monotone" dataKey="gmv_affiliate" stroke="#FF6B35" strokeWidth={2.5} dot={{r:4,fill:'#FF6B35',strokeWidth:0}} activeDot={{r:6}}/>
-                <Line type="monotone" dataKey="gmv_live"      stroke="#FF8C00" strokeWidth={2.5} dot={{r:4,fill:'#FF8C00',strokeWidth:0}} activeDot={{r:6}}/>
-                <Line type="monotone" dataKey="biaya_ads"     stroke="#DC2626" strokeWidth={2}   strokeDasharray="5 5" dot={{r:3,fill:'#DC2626',strokeWidth:0}} activeDot={{r:5}}/>
+                <Tooltip
+                  formatter={(v) => ['Rp '+Number(v).toLocaleString('id-ID'), 'Total GMV']}
+                  labelFormatter={l => 'Tanggal: '+l}
+                  contentStyle={{fontSize:12,borderRadius:8,border:'1px solid #FFE0CC'}}
+                />
+                <Line type="monotone" dataKey="gmv"
+                  stroke="#FF6B35" strokeWidth={2.5}
+                  dot={{ r:4, fill:'#FF6B35', strokeWidth:0 }}
+                  activeDot={{ r:6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
