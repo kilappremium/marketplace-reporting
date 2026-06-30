@@ -76,7 +76,6 @@ export default function DashboardPage() {
   const [prevAds, setPrevAds]                     = useState({ shopee:[], tiktok:[], meta:[] })
   const [weeklyLive, setWeeklyLive]               = useState([])
   const [prevLive, setPrevLive]                   = useState([])
-  const [grafikData, setGrafikData]               = useState([])
 
   const [filterStart, setFilterStart] = useState('')
   const [filterEnd, setFilterEnd]     = useState('')
@@ -194,23 +193,6 @@ export default function DashboardPage() {
     setAllRawAds(allAds)
     setAllRawLive(allLive)
 
-    const grafikWeeks = Array.from({length:8}, (_,i) => {
-      const range = getWeekRange(7 - i)
-      const d     = new Date(range.from)
-      const soy   = new Date(d.getFullYear(),0,1)
-      const wn    = Math.ceil(((d - soy)/86400000 + soy.getDay() + 1)/7)
-      const fw    = arr => arr.filter(r => r.tanggal >= range.from && r.tanggal <= range.to)
-      const aff   = fw(allAff); const live = fw(allLive)
-      const sAds  = fw(allAds.shopee); const tAds = fw(allAds.tiktok); const mAds = fw(allAds.meta)
-      return {
-        label:         `W${wn}`,
-        gmv_affiliate: sum(aff,'gmv'),
-        gmv_live:      sum(live,'gmv'),
-        biaya_ads:     sum(sAds,'biaya_iklan') + sum(tAds,'biaya_iklan') + sum(mAds,'biaya_iklan'),
-        omzet_ads:     sum(sAds,'omzet') + sum(tAds,'omzet') + sum(mAds,'omzet'),
-      }
-    })
-    setGrafikData(grafikWeeks)
     setLoading(false)
   }
 
@@ -590,6 +572,80 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
     if (v >= 1e3) return (v/1e3).toFixed(0)+'rb'
     return v
   }
+
+  const grafikDataHarian = (() => {
+    if (!filterStart || !filterEnd) return []
+
+    const allCombined = [
+      ...allRawAffiliate.map(r => ({...r, source:'affiliate'})),
+      ...allRawLive.map(r => ({...r, source:'live'})),
+    ]
+
+    const filtered = allCombined.filter(r =>
+      r.tanggal >= filterStart && r.tanggal <= filterEnd)
+
+    const grouped = {}
+    filtered.forEach(r => {
+      const tgl = r.tanggal
+      if (!grouped[tgl]) grouped[tgl] = { tgl, gmv_affiliate:0, gmv_live:0, biaya_ads:0 }
+      if (r.source === 'affiliate') grouped[tgl].gmv_affiliate += Number(r.gmv)||0
+      if (r.source === 'live') grouped[tgl].gmv_live += Number(r.gmv)||0
+    })
+
+    const allAdsFlat = [
+      ...allRawAds.shopee, ...allRawAds.tiktok, ...allRawAds.meta
+    ].filter(r => r.tanggal >= filterStart && r.tanggal <= filterEnd)
+
+    allAdsFlat.forEach(r => {
+      const tgl = r.tanggal
+      if (!grouped[tgl]) grouped[tgl] = { tgl, gmv_affiliate:0, gmv_live:0, biaya_ads:0 }
+      grouped[tgl].biaya_ads += Number(r.biaya_iklan)||0
+    })
+
+    return Object.values(grouped)
+      .sort((a,b) => a.tgl.localeCompare(b.tgl))
+      .map(g => ({ ...g, label: g.tgl.slice(5) }))
+  })()
+
+  const grafikDataQuartal = (() => {
+    const tahun = new Date().getFullYear()
+    const quartals = [
+      { label: 'Q1', bulan: [0,1,2] },
+      { label: 'Q2', bulan: [3,4,5] },
+      { label: 'Q3', bulan: [6,7,8] },
+      { label: 'Q4', bulan: [9,10,11] },
+    ]
+
+    return quartals.map(q => {
+      const filterQuartal = (arr) => arr.filter(r => {
+        if (!r.tanggal) return false
+        const d = new Date(r.tanggal)
+        return d.getFullYear() === tahun && q.bulan.includes(d.getMonth())
+      })
+
+      const affQ = filterQuartal(allRawAffiliate)
+      const liveQ = filterQuartal(allRawLive)
+      const shopeeQ = filterQuartal(allRawAds.shopee)
+      const tiktokQ = filterQuartal(allRawAds.tiktok)
+      const metaQ = filterQuartal(allRawAds.meta)
+
+      return {
+        label: q.label,
+        gmv_affiliate: affQ.reduce((a,b)=>a+(Number(b.gmv)||0),0),
+        gmv_live: liveQ.reduce((a,b)=>a+(Number(b.gmv)||0),0),
+        biaya_ads: [...shopeeQ,...tiktokQ,...metaQ]
+          .reduce((a,b)=>a+(Number(b.biaya_iklan)||0),0),
+      }
+    })
+  })()
+
+  const grafikDataFinal = (filterStart && filterEnd)
+    ? grafikDataHarian
+    : grafikDataQuartal
+
+  const grafikTitle = (filterStart && filterEnd)
+    ? `Tren GMV Harian — ${filterStart} s/d ${filterEnd}`
+    : `Tren GMV — Per Quartal ${new Date().getFullYear()}`
 
   return (
     <div style={{maxWidth:1200,margin:'0 auto',fontFamily:'sans-serif'}}>
@@ -1023,12 +1079,16 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
             @keyframes pulse { 0%,100%{opacity:0.3;transform:scale(0.8)} 50%{opacity:1;transform:scale(1)} }
           `}</style>
 
-          {/* ── GRAFIK 8 MINGGU ── */}
+          {/* ── GRAFIK TREN GMV ── */}
           <div style={{background:'#fff',border:'1px solid #FFE0CC',borderRadius:12,padding:20,marginBottom:24,boxShadow:'0 2px 8px rgba(255,100,0,0.06)'}}>
-            <p style={{margin:'0 0 4px',fontWeight:700,fontSize:14,color:'#1A1A1A'}}>Tren GMV — 8 Minggu Terakhir</p>
-            <p style={{margin:'0 0 16px',fontSize:12,color:'#999'}}>Affiliate · Livestream · Biaya Ads</p>
+            <p style={{margin:'0 0 4px',fontWeight:700,fontSize:14,color:'#1A1A1A'}}>{grafikTitle}</p>
+            <p style={{margin:'0 0 16px',fontSize:12,color:'#999'}}>
+              {(filterStart && filterEnd)
+                ? `Data harian dalam periode terpilih`
+                : `Affiliate · Livestream · Biaya Ads per quartal`}
+            </p>
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={grafikData} margin={{top:5,right:10,left:10,bottom:5}}>
+              <LineChart data={grafikDataFinal} margin={{top:5,right:10,left:10,bottom:5}}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#FFF3ED"/>
                 <XAxis dataKey="label" tick={{fontSize:11,fill:'#999'}} tickLine={false} axisLine={{stroke:'#FFE0CC'}}/>
                 <YAxis tickFormatter={fmtAxis} tick={{fontSize:11,fill:'#999'}} tickLine={false} axisLine={false} width={60}/>
