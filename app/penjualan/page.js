@@ -578,45 +578,52 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
       .map(g => ({ ...g, label: g.tgl.slice(5) }))
   })()
 
-  const grafikDataQuartal = (() => {
-    const tahun = new Date().getFullYear()
-    const quartals = [
-      { label: 'Q1', bulan: [0,1,2] },
-      { label: 'Q2', bulan: [3,4,5] },
-      { label: 'Q3', bulan: [6,7,8] },
-      { label: 'Q4', bulan: [9,10,11] },
+  const grafikDataBulanIni = (() => {
+    const today = new Date()
+    const tahun = today.getFullYear()
+    const bulan = today.getMonth()
+
+    const fromStr = `${tahun}-${String(bulan+1).padStart(2,'0')}-01`
+    const toStr = today.toISOString().split('T')[0]
+
+    const allCombined = [
+      ...allRawAffiliate.map(r => ({...r, source:'affiliate'})),
+      ...allRawLive.map(r => ({...r, source:'live'})),
     ]
 
-    return quartals.map(q => {
-      const filterQuartal = (arr) => arr.filter(r => {
-        if (!r.tanggal) return false
-        const d = new Date(r.tanggal)
-        return d.getFullYear() === tahun && q.bulan.includes(d.getMonth())
-      })
+    const filtered = allCombined.filter(r =>
+      r.tanggal >= fromStr && r.tanggal <= toStr)
 
-      const affQ = filterQuartal(allRawAffiliate)
-      const liveQ = filterQuartal(allRawLive)
-      const shopeeQ = filterQuartal(allRawAds.shopee)
-      const tiktokQ = filterQuartal(allRawAds.tiktok)
-      const metaQ = filterQuartal(allRawAds.meta)
-
-      return {
-        label: q.label,
-        gmv_affiliate: affQ.reduce((a,b)=>a+(Number(b.gmv)||0),0),
-        gmv_live: liveQ.reduce((a,b)=>a+(Number(b.gmv)||0),0),
-        biaya_ads: [...shopeeQ,...tiktokQ,...metaQ]
-          .reduce((a,b)=>a+(Number(b.biaya_iklan)||0),0),
-      }
+    const grouped = {}
+    filtered.forEach(r => {
+      const tgl = r.tanggal
+      if (!grouped[tgl]) grouped[tgl] = { tgl, gmv_affiliate:0, gmv_live:0, biaya_ads:0 }
+      if (r.source === 'affiliate') grouped[tgl].gmv_affiliate += Number(r.gmv)||0
+      if (r.source === 'live') grouped[tgl].gmv_live += Number(r.gmv)||0
     })
+
+    const allAdsFlat = [
+      ...allRawAds.shopee, ...allRawAds.tiktok, ...allRawAds.meta
+    ].filter(r => r.tanggal >= fromStr && r.tanggal <= toStr)
+
+    allAdsFlat.forEach(r => {
+      const tgl = r.tanggal
+      if (!grouped[tgl]) grouped[tgl] = { tgl, gmv_affiliate:0, gmv_live:0, biaya_ads:0 }
+      grouped[tgl].biaya_ads += Number(r.biaya_iklan)||0
+    })
+
+    return Object.values(grouped)
+      .sort((a,b) => a.tgl.localeCompare(b.tgl))
+      .map(g => ({ ...g, label: g.tgl.slice(5) }))
   })()
 
   const grafikDataFinal = (filterStart && filterEnd)
     ? grafikDataHarian
-    : grafikDataQuartal
+    : grafikDataBulanIni
 
   const grafikTitle = (filterStart && filterEnd)
     ? `Tren GMV Harian — ${filterStart} s/d ${filterEnd}`
-    : `Tren GMV — Per Quartal ${new Date().getFullYear()}`
+    : `Tren GMV Harian — ${new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'})}`
 
   return (
     <div style={{maxWidth:1200,margin:'0 auto',fontFamily:'sans-serif'}}>
@@ -1052,7 +1059,7 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
             <p style={{margin:'0 0 16px',fontSize:12,color:'#999'}}>
               {(filterStart && filterEnd)
                 ? `Data harian dalam periode terpilih`
-                : `Affiliate · Livestream · Biaya Ads per quartal`}
+                : `Data harian dari tanggal 1 sampai hari ini`}
             </p>
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={grafikDataFinal} margin={{top:5,right:10,left:10,bottom:5}}>
