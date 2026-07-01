@@ -330,13 +330,58 @@ export default function DashboardPage() {
   const gmvAff       = sum(penjualanFiltered, 'gmv_affiliate')
   const prevGmvAff   = sum(penjualanPrevFiltered, 'gmv_affiliate')
   const gmvLive      = sum(weeklyLive,'gmv')
-  const gmvAdsShopee = sum(weeklyAds.shopee,'omzet')
-  const gmvAdsTiktok = sum(weeklyAds.tiktok,'omzet')
-  const gmvAdsMeta   = sum(weeklyAds.meta,'omzet')
-  const gmvAdsTotal  = gmvAdsShopee + gmvAdsTiktok + gmvAdsMeta
+
+  const adsFiltered = (() => {
+    const filterFn = (arr) => {
+      if (filterStart && filterEnd) {
+        return (arr||[]).filter(r =>
+          r.tanggal >= filterStart && r.tanggal <= filterEnd)
+      }
+      return (arr||[]).filter(r =>
+        r.tanggal >= thisWeek.from && r.tanggal <= thisWeek.to)
+    }
+    return {
+      shopee: filterFn(allRawAds.shopee),
+      tiktok: filterFn(allRawAds.tiktok),
+      meta: filterFn(allRawAds.meta),
+    }
+  })()
+
+  const prevAdsFiltered = (() => {
+    const prevFilterFn = (arr) => {
+      if (filterStart && filterEnd) {
+        const start = new Date(filterStart)
+        const end = new Date(filterEnd)
+        const durasi = Math.round((end-start)/(1000*60*60*24))+1
+        const prevEnd = new Date(start)
+        prevEnd.setDate(prevEnd.getDate()-1)
+        const prevStart = new Date(prevEnd)
+        prevStart.setDate(prevStart.getDate()-durasi+1)
+        return (arr||[]).filter(r =>
+          r.tanggal >= prevStart.toISOString().split('T')[0] &&
+          r.tanggal <= prevEnd.toISOString().split('T')[0])
+      }
+      return (arr||[]).filter(r =>
+        r.tanggal >= lastWeek.from && r.tanggal <= lastWeek.to)
+    }
+    return {
+      shopee: prevFilterFn(allRawAds.shopee),
+      tiktok: prevFilterFn(allRawAds.tiktok),
+      meta: prevFilterFn(allRawAds.meta),
+    }
+  })()
+
+  const gmvAdsShopee = adsFiltered.shopee.reduce((a,b)=>a+(Number(b.omzet)||0),0)
+  const gmvAdsTiktok = adsFiltered.tiktok.reduce((a,b)=>a+(Number(b.omzet)||0),0)
+  const gmvAdsMeta   = adsFiltered.meta.reduce((a,b)=>a+(Number(b.omzet)||0),0)
+  const totalOmzetAds = gmvAdsShopee + gmvAdsTiktok + gmvAdsMeta
+  const gmvAdsTotal  = totalOmzetAds
 
   const prevGmvLive  = sum(prevLive,'gmv')
-  const prevGmvAds   = sum(prevAds.shopee,'omzet') + sum(prevAds.tiktok,'omzet') + sum(prevAds.meta,'omzet')
+  const prevOmzetAds =
+    prevAdsFiltered.shopee.reduce((a,b)=>a+(Number(b.omzet)||0),0) +
+    prevAdsFiltered.tiktok.reduce((a,b)=>a+(Number(b.omzet)||0),0) +
+    prevAdsFiltered.meta.reduce((a,b)=>a+(Number(b.omzet)||0),0)
 
   const totalPesanan = sum(weeklyAffiliate,'pesanan') + sum(weeklyLive,'pesanan')
   const prevPesanan  = sum(prevWeekAffiliate,'pesanan') + sum(prevLive,'pesanan')
@@ -371,7 +416,8 @@ export default function DashboardPage() {
   const growthPesanan = growth(totalPesanan, prevPesanan)
   const growthLive    = growth(totalSesiLive, prevSesiLive)
 
-  const growthGmvAds      = growth(gmvAdsTotal,    prevGmvAds)
+  const growthOmzetAds = prevOmzetAds > 0
+    ? ((totalOmzetAds-prevOmzetAds)/prevOmzetAds*100) : 0
   const growthGmvAff      = growth(gmvAff,          prevGmvAff)
   const growthGmvLive     = growth(gmvLive,         prevGmvLive)
   const growthVisitor     = growth(spVisitor,       prevSpVisitor)
@@ -854,7 +900,7 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
                 <GrowthBadge value={growthGmv} />
               </div>
 
-              <PerfCard label="GMV Ads"          value={fmtRp(gmvAdsTotal)}               growth={growthGmvAds}     sub="Shopee+TikTok+Meta"/>
+              <PerfCard label="GMV Ads"          value={fmtRp(totalOmzetAds)}             growth={growthOmzetAds}   sub="Shopee+TikTok+Meta (kolom omzet)"/>
               <PerfCard label="GMV Affiliate"    value={fmtRp(gmvAff)}                    growth={growthGmvAff}     sub="dari penjualan_harian"/>
               <PerfCard label="GMV Livestream"   value={fmtRp(gmvLive)}                   growth={growthGmvLive}    sub={`${totalSesiLive} sesi`}/>
               <PerfCard label="Visitor"          value={fmt(spVisitor)}                    growth={growthVisitor}    sub="dari penjualan harian"/>
