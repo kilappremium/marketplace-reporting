@@ -1,8 +1,8 @@
 const GROQ_MODELS = [
   'llama-3.1-8b-instant',
-  'llama3-8b-8192',
-  'gemma2-9b-it',
-  'mixtral-8x7b-32768',
+  'llama-3.3-70b-versatile',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'qwen/qwen3-32b',
 ]
 
 export async function POST(request) {
@@ -45,10 +45,15 @@ export async function POST(request) {
           return Response.json({ text, model_used: model })
         }
 
-        // Kalau rate limit → coba model berikutnya
-        if (data.error?.code === 'rate_limit_exceeded' || response.status === 429) {
-          console.warn(`[AI] Model ${model} rate limit, mencoba model berikutnya...`)
-          lastError = `Rate limit pada ${model}`
+        // Kalau rate limit / model tidak tersedia → coba model berikutnya
+        if (
+          data.error?.code === 'rate_limit_exceeded' ||
+          data.error?.code === 'model_decommissioned' ||
+          data.error?.code === 'model_not_found' ||
+          response.status === 429
+        ) {
+          console.warn(`[AI] Model ${model} tidak tersedia (${data.error?.code}), mencoba model berikutnya...`)
+          lastError = `${model}: ${data.error?.message || 'tidak tersedia'}`
           continue
         }
 
