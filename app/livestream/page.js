@@ -7,7 +7,6 @@ import {
 } from 'recharts'
 
 // ─── Constants ────────────────────────────────────────────
-const HOSTS = ['Safa','Mery','Ira','Fidella','Huni','Ilma','Afi','Niken','Dyna','Bita','Davina']
 const PLATFORMS = ['Shopee','Tiktok']
 const BRANDS = ['Kilap Premium', 'Purfress']
 
@@ -83,6 +82,8 @@ export default function LivestreamPage() {
   const [notif, setNotif]         = useState('')
   const [editId, setEditId]       = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [hostList, setHostList]   = useState([])
+  const [hostBaru, setHostBaru]   = useState('')
 
   // Filter states
   const [filterHost, setFilterHost]         = useState('')
@@ -107,7 +108,10 @@ export default function LivestreamPage() {
 
   const fileRef = useRef()
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchData()
+    fetchHosts()
+  }, [])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -123,6 +127,28 @@ export default function LivestreamPage() {
       .order('tanggal', { ascending: false })
     setData(rows || [])
     setLoading(false)
+  }
+
+  async function fetchHosts() {
+    // Ambil tanggal 30 hari lalu
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const fromDate = thirtyDaysAgo.toISOString().split('T')[0]
+
+    const { data } = await supabase
+      .from('livestream')
+      .select('nama_host')
+      .gte('tanggal', fromDate)
+      .not('nama_host', 'is', null)
+      .neq('nama_host', '')
+
+    if (data) {
+      // Ambil nama unik dan urutkan A-Z
+      const unique = [...new Set(data.map(r => r.nama_host))]
+        .filter(Boolean)
+        .sort()
+      setHostList(unique)
+    }
   }
 
   function handleChange(e) {
@@ -199,6 +225,7 @@ export default function LivestreamPage() {
     setForm(EMPTY_FORM)
     setShowForm(false)
     fetchData()
+    fetchHosts()
     setTimeout(() => setNotif(''), 3000)
   }
 
@@ -430,7 +457,10 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
     ? ((curr - prev) / prev * 100).toFixed(1) : null
 
   // ─── Sales per Host ────────────────────────────────────
-  const perHost = HOSTS.map(host => {
+  const perHost = [...new Set(filtered.map(r => r.nama_host))]
+    .filter(Boolean)
+    .sort()
+    .map(host => {
     const rows = filtered.filter(r => r.nama_host === host)
     if (rows.length === 0) return null
     const gmv = sum(rows, 'gmv')
@@ -589,8 +619,46 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
                 <select name="nama_host" value={form.nama_host}
                   onChange={handleChange} style={selectStyle}>
                   <option value="">-- Pilih Host --</option>
-                  {HOSTS.map(h => <option key={h} value={h}>{h}</option>)}
+                  {hostList.map(h => <option key={h} value={h}>{h}</option>)}
+                  {form.nama_host && !hostList.includes(form.nama_host) && (
+                    <option value={form.nama_host}>{form.nama_host}</option>
+                  )}
                 </select>
+                <div style={{ marginTop: 8 }}>
+                  <p style={{ margin:'0 0 5px', fontSize:11, color:'#999' }}>
+                    Atau tambah host baru:
+                  </p>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <input
+                      type="text"
+                      value={hostBaru}
+                      onChange={e => setHostBaru(e.target.value)}
+                      placeholder="Ketik nama host baru..."
+                      style={{ flex:1, padding:'7px 12px', borderRadius:8,
+                        border:'1px solid #FFD4B8', fontSize:13,
+                        color:'#1A1A1A', background:'#fff' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!hostBaru.trim()) return
+                        setForm(f => ({...f, nama_host: hostBaru.trim()}))
+                        setHostBaru('')
+                      }}
+                      style={{ padding:'7px 14px', borderRadius:8,
+                        background:'linear-gradient(135deg,#FF6B35,#FF8C00)',
+                        color:'#fff', border:'none', cursor:'pointer',
+                        fontSize:12, fontWeight:500, whiteSpace:'nowrap' }}>
+                      Pakai nama ini
+                    </button>
+                  </div>
+                  {form.nama_host && !hostList.includes(form.nama_host) && (
+                    <p style={{ margin:'4px 0 0', fontSize:11, color:'#FF6B35' }}>
+                      ✦ Host baru: "{form.nama_host}" akan otomatis
+                      tersedia di dropdown setelah data disimpan
+                    </p>
+                  )}
+                </div>
               </Field>
               <Field label="Platform" required>
                 <select name="platform" value={form.platform}
@@ -748,7 +816,7 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
             <select value={filterHost} onChange={e => setFilterHost(e.target.value)}
               style={selectStyle}>
               <option value="">Semua host</option>
-              {HOSTS.map(h => <option key={h} value={h}>{h}</option>)}
+              {hostList.map(h => <option key={h} value={h}>{h}</option>)}
             </select>
           </div>
           <div>
