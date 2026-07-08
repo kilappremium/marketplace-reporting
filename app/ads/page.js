@@ -247,6 +247,11 @@ export default function AdsPage() {
   const [chatMessages, setChatMessages] = useState([])
   const [chatInput, setChatInput]       = useState('')
   const [chatLoading, setChatLoading]   = useState(false)
+  const [syncLoading, setSyncLoading]   = useState(false)
+  const [syncMsg, setSyncMsg]           = useState('')
+  const [showSyncPanel, setShowSyncPanel] = useState(false)
+  const [syncStart, setSyncStart]       = useState(firstDayOfMonth)
+  const [syncEnd, setSyncEnd]           = useState(lastDayOfMonth)
   const chatEndRef = useRef(null)
   const [filterStart, setFilterStart] = useState(firstDayOfMonth)
   const [filterEnd, setFilterEnd] = useState(lastDayOfMonth)
@@ -493,6 +498,28 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
     setChatLoading(false)
   }
 
+  async function handleSyncMeta() {
+    setSyncLoading(true)
+    setSyncMsg('')
+    try {
+      const res  = await fetch('/api/meta-ads-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tanggal_start: syncStart,
+          tanggal_end:   syncEnd,
+        }),
+      })
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setSyncMsg(`✅ ${json.message} · Periode: ${json.periode}`)
+      fetchAll()
+    } catch (err) {
+      setSyncMsg(`❌ Gagal sync: ${err.message}`)
+    }
+    setSyncLoading(false)
+  }
+
   async function handleFileUpload(e) {
     const file = e.target.files[0]
     if (!file) return
@@ -630,6 +657,85 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
       {notif && (
         <div style={{ padding: '12px 16px', borderRadius: 8, marginBottom: 16, fontSize: 14, background: notif.startsWith('ok:') ? '#DCFCE7' : '#FEE2E2', color: notif.startsWith('ok:') ? '#166534' : '#991B1B' }}>
           {notif.replace(/^(ok|error):/, '')}
+        </div>
+      )}
+
+      {/* ── PANEL SYNC META ADS ── */}
+      {showSyncPanel && activeTab === 'meta' && (
+        <div style={{ background:'#E6F1FB', border:'1px solid #BFDBFE', borderRadius:12, padding:20, marginBottom:20, boxShadow:'0 1px 4px rgba(24,119,242,0.1)' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:'#1877F2', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>
+                📘
+              </div>
+              <div>
+                <p style={{ margin:0, fontWeight:700, fontSize:14, color:'#0C447C' }}>Sync Data dari Meta Ads</p>
+                <p style={{ margin:0, fontSize:11, color:'#3B82F6' }}>Data akan otomatis diimpor dari Meta Ads API ke Supabase</p>
+              </div>
+            </div>
+            <button onClick={() => { setShowSyncPanel(false); setSyncMsg('') }}
+              style={{ background:'none', border:'none', fontSize:20, cursor:'pointer', color:'#6B7280' }}>×</button>
+          </div>
+
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:14 }}>
+            <div>
+              <label style={{ fontSize:11, color:'#0C447C', fontWeight:600, display:'block', marginBottom:4 }}>Dari Tanggal</label>
+              <input type="date" value={syncStart} onChange={e => setSyncStart(e.target.value)}
+                style={{ padding:'7px 12px', borderRadius:8, border:'1px solid #93C5FD', fontSize:13, color:'#111', background:'#fff', outline:'none' }} />
+            </div>
+            <div>
+              <label style={{ fontSize:11, color:'#0C447C', fontWeight:600, display:'block', marginBottom:4 }}>Sampai Tanggal</label>
+              <input type="date" value={syncEnd} onChange={e => setSyncEnd(e.target.value)}
+                style={{ padding:'7px 12px', borderRadius:8, border:'1px solid #93C5FD', fontSize:13, color:'#111', background:'#fff', outline:'none' }} />
+            </div>
+            <div style={{ display:'flex', alignItems:'flex-end' }}>
+              <button onClick={handleSyncMeta} disabled={syncLoading}
+                style={{
+                  padding:'8px 24px', borderRadius:8, border:'none', fontSize:13, fontWeight:600,
+                  cursor: syncLoading ? 'default' : 'pointer',
+                  background: syncLoading ? '#93C5FD' : '#1877F2',
+                  color:'#fff', display:'flex', alignItems:'center', gap:6,
+                }}>
+                {syncLoading ? (
+                  <>
+                    <span style={{ width:14, height:14, borderRadius:'50%', border:'2px solid rgba(255,255,255,0.4)', borderTop:'2px solid #fff', animation:'spin 1s linear infinite', display:'inline-block' }}/>
+                    Mensinkronkan...
+                  </>
+                ) : '🔄 Mulai Sync'}
+              </button>
+            </div>
+          </div>
+
+          {/* Shortcut periode */}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom: syncMsg ? 12 : 0 }}>
+            {[
+              { label: 'Hari ini', start: new Date().toISOString().split('T')[0], end: new Date().toISOString().split('T')[0] },
+              { label: '7 hari', start: (() => { const d = new Date(); d.setDate(d.getDate()-6); return d.toISOString().split('T')[0] })(), end: new Date().toISOString().split('T')[0] },
+              { label: 'Bulan ini', start: firstDayOfMonth, end: lastDayOfMonth },
+              { label: '30 hari', start: (() => { const d = new Date(); d.setDate(d.getDate()-29); return d.toISOString().split('T')[0] })(), end: new Date().toISOString().split('T')[0] },
+            ].map(p => (
+              <button key={p.label} onClick={() => { setSyncStart(p.start); setSyncEnd(p.end) }}
+                style={{ padding:'4px 12px', borderRadius:20, fontSize:11, cursor:'pointer', border:'1px solid #93C5FD', background: syncStart === p.start && syncEnd === p.end ? '#1877F2' : '#fff', color: syncStart === p.start && syncEnd === p.end ? '#fff' : '#0C447C', fontWeight:500 }}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {syncMsg && (
+            <div style={{
+              marginTop:12, padding:'10px 14px', borderRadius:8, fontSize:13,
+              background: syncMsg.startsWith('✅') ? '#DCFCE7' : '#FEE2E2',
+              color:      syncMsg.startsWith('✅') ? '#166534'  : '#991B1B',
+              border:     syncMsg.startsWith('✅') ? '1px solid #BBF7D0' : '1px solid #FECACA',
+            }}>
+              {syncMsg}
+              <button onClick={() => setSyncMsg('')} style={{ float:'right', background:'none', border:'none', cursor:'pointer', fontSize:14, color:'inherit' }}>×</button>
+            </div>
+          )}
+
+          <div style={{ marginTop:12, padding:'10px 14px', background:'rgba(255,255,255,0.6)', borderRadius:8, fontSize:12, color:'#3B82F6' }}>
+            ℹ️ Data yang sudah ada untuk periode yang sama akan diperbarui (upsert), tidak akan duplikat.
+          </div>
         </div>
       )}
 
@@ -809,6 +915,18 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Tombol Sync Meta Ads — hanya muncul di tab Meta */}
+          {activeTab === 'meta' && (
+            <button onClick={() => setShowSyncPanel(o => !o)}
+              style={{
+                padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:600,
+                cursor:'pointer', border:'1.5px solid #1877F2',
+                background:'#E6F1FB', color:'#0C447C',
+                display:'flex', alignItems:'center', gap:6,
+              }}>
+              🔄 Sync Meta Ads
+            </button>
+          )}
           <button onClick={() => { setShowUpload(true); setUploadPlatform(activeTab) }}
             style={{
               padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:600,
