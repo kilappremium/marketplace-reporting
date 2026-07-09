@@ -270,8 +270,12 @@ export default function DashboardPage() {
   }
 
   async function fetchDataPenjualan() {
-    const tahun = new Date().getFullYear()
-    const { data: rows } = await supabase.from('penjualan_harian').select('*').gte('tanggal',`${tahun}-01-01`).order('tanggal',{ascending:false})
+    const { data: rows } = await supabase
+      .from('penjualan_harian')
+      .select('*')
+      .gte('tanggal', '2026-01-01')
+      .lte('tanggal', new Date().toISOString().split('T')[0])
+      .order('tanggal', { ascending: false })
     setDataPenjualan(rows || [])
   }
 
@@ -295,16 +299,18 @@ export default function DashboardPage() {
   }
 
   // ─── Metrik Summary Performa (dari penjualan_harian) ─
-  const penjualanFiltered = dataPenjualan.filter(r => {
-    const inPeriod = filterStart && filterEnd
-      ? r.tanggal >= filterStart && r.tanggal <= filterEnd
-      : r.tanggal >= thisWeek.from && r.tanggal <= thisWeek.to
-    const inChannel = !filterChannel || filterChannel === 'Semua Channel'
-      ? true : r.channel?.toLowerCase() === filterChannel.toLowerCase()
-    const inBrand = !filterBrand || filterBrand === 'Semua Brand'
-      ? true : (r.brand || '').toLowerCase() === filterBrand.toLowerCase()
-    return inPeriod && inChannel && inBrand
-  })
+  const penjualanFiltered = (() => {
+    if (!dataPenjualan || dataPenjualan.length === 0) return []
+    if (filterStart && filterEnd) {
+      return dataPenjualan.filter(r =>
+        r.tanggal >= filterStart && r.tanggal <= filterEnd)
+    }
+    // Default: bulan ini
+    const today = new Date()
+    const bulanIni = today.toISOString().slice(0, 7)
+    return dataPenjualan.filter(r =>
+      r.tanggal && r.tanggal.startsWith(bulanIni))
+  })()
 
   const penjualanPrevFiltered = dataPenjualan.filter(r => {
     const inPeriod = filterStart && filterEnd
@@ -325,9 +331,11 @@ export default function DashboardPage() {
   })
 
   // ─── Kalkulasi metrics ────────────────────────────────
-  const totalGmv     = sum(penjualanFiltered, 'gmv')
+  const totalGmv = penjualanFiltered.reduce(
+    (a, b) => a + (Number(b.gmv) || 0), 0)
   const prevTotalGmv = sum(penjualanPrevFiltered, 'gmv')
-  const gmvAff       = sum(penjualanFiltered, 'gmv_affiliate')
+  const gmvAff = penjualanFiltered.reduce(
+    (a, b) => a + (Number(b.gmv_affiliate) || 0), 0)
   const prevGmvAff   = sum(penjualanPrevFiltered, 'gmv_affiliate')
   const gmvLive      = sum(weeklyLive,'gmv')
 
@@ -389,7 +397,8 @@ export default function DashboardPage() {
   const totalSesiLive = weeklyLive.length
   const prevSesiLive  = prevLive.length
 
-  const spVisitor        = sum(penjualanFiltered,'visitor')
+  const spVisitor        = penjualanFiltered.reduce(
+    (a, b) => a + (Number(b.visitor) || 0), 0)
   const spPesanan        = sum(penjualanFiltered,'pesanan_masuk')
   const spGmv            = sum(penjualanFiltered,'gmv')
   const spBatal          = sum(penjualanFiltered,'pesanan_batal')
@@ -897,13 +906,14 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 2px 8px rgba(255,100,0,0.08)'}}>
                 <p style={{margin:'0 0 6px',fontSize:12,fontWeight:500,color:'rgba(255,255,255,0.8)'}}>Total GMV Keseluruhan</p>
                 <p style={{margin:'0 0 10px',fontSize:24,fontWeight:700,color:'#fff',lineHeight:1.2}}>{fmtRp(totalGmv)}</p>
+                <p style={{margin:'0 0 10px',fontSize:11,color:'rgba(255,255,255,0.75)'}}>dari penjualan_harian (kolom gmv)</p>
                 <GrowthBadge value={growthGmv} />
               </div>
 
               <PerfCard label="GMV Ads"          value={fmtRp(totalOmzetAds)}             growth={growthOmzetAds}   sub="Shopee+TikTok+Meta (kolom omzet)"/>
-              <PerfCard label="GMV Affiliate"    value={fmtRp(gmvAff)}                    growth={growthGmvAff}     sub="dari penjualan_harian"/>
+              <PerfCard label="GMV Affiliate"    value={fmtRp(gmvAff)}                    growth={growthGmvAff}     sub="dari penjualan_harian (kolom gmv_affiliate)"/>
               <PerfCard label="GMV Livestream"   value={fmtRp(gmvLive)}                   growth={growthGmvLive}    sub={`${totalSesiLive} sesi`}/>
-              <PerfCard label="Visitor"          value={fmt(spVisitor)}                    growth={growthVisitor}    sub="dari penjualan harian"/>
+              <PerfCard label="Visitor"          value={fmt(spVisitor)}                    growth={growthVisitor}    sub="dari penjualan_harian (kolom visitor)"/>
               <PerfCard label="CVR"              value={fmtPct(spCvr)}                    growth={growthCvr}        sub={`${fmt(spPesanan)} pesanan / ${fmt(spVisitor)} visitor`}/>
               <PerfCard label="AOV Order"        value={spAov > 0 ? fmtRp(spAov) : '—'}  growth={growthAov}        sub="avg nilai per pesanan"/>
               <PerfCard label="Cancel Rate"      value={fmtPct(spCancelRate)}             growth={growthCancelRate} sub={`${fmt(spBatal)} batal / ${fmt(spPesanan)} pesanan`}    warn={spCancelRate > 5}/>
