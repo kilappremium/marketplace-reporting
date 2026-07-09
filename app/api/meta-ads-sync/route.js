@@ -1,12 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
-const META_AD_ACCOUNT_ID = process.env.act_3652029991679722 // act_3652029991679722
-const META_ACCESS_TOKEN  = process.env.EAAd4Sxlgbu0BRxgZAp5lYDR6atqcR4ZC5Nny6VqQh8KGjjjIZAZBiBuzZCDDsPLCuYmbwI1qr8ON3HC4RbNFMh15Hf5MUotmZAhsZANYNCRYNzjtM4uSGZCy9MWQZAgQjTJ0mOtXjiElNS3qwZBqNqFz5dGMLO4bJZCbMX3OryaEtNtvXGGf8ZCun1vzZCZCM5IfiFenFB9IMnyXuTZALlWPcV8cW0gk7UIiJY3il5ilQjcRLMGZCZAJ7mh7diSK4xVoaHLoCzsgcewJuB0si3ukZD
+const META_AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID
+const META_ACCESS_TOKEN  = process.env.META_ACCESS_TOKEN
 
-// Metrik yang di-fetch dari Meta Ads API
 const FIELDS = [
   'campaign_name',
-  'adset_name',
   'impressions',
   'clicks',
   'ctr',
@@ -43,7 +41,6 @@ export async function POST(request) {
     const dateStart = tanggal_start || new Date().toISOString().split('T')[0]
     const dateEnd   = tanggal_end   || new Date().toISOString().split('T')[0]
 
-    // Fetch dari Meta Ads API
     const url = `https://graph.facebook.com/v21.0/${META_AD_ACCOUNT_ID}/insights?` +
       `fields=${FIELDS}` +
       `&time_range={"since":"${dateStart}","until":"${dateEnd}"}` +
@@ -68,25 +65,24 @@ export async function POST(request) {
       return Response.json({ message: 'Tidak ada data pada periode ini', count: 0 })
     }
 
-    // Mapping ke schema tabel ads_meta
     const payload = rows.map(row => {
-      const biaya     = Number(row.spend)       || 0
-      const impresi   = Number(row.impressions) || 0
-      const klik      = Number(row.clicks)      || 0
-      const pesanan   = extractAction(row.actions, 'purchase')
-      const atc       = extractAction(row.actions, 'add_to_cart')
-      const viewPage  = extractAction(row.actions, 'view_content')
-      const omzet     = extractAction(row.action_values, 'purchase')
+      const biaya   = Number(row.spend)       || 0
+      const impresi = Number(row.impressions) || 0
+      const klik    = Number(row.clicks)      || 0
+      const pesanan = extractAction(row.actions, 'purchase')
+      const atc     = extractAction(row.actions, 'add_to_cart')
+      const viewPage = extractAction(row.actions, 'view_content')
+      const omzet   = extractAction(row.action_values, 'purchase')
 
-      const ctr          = impresi > 0 ? (klik / impresi * 100)     : 0
-      const cpc          = klik    > 0 ? (biaya / klik)              : 0
-      const cpm          = impresi > 0 ? (biaya / impresi * 1000)    : 0
-      const cvr          = klik    > 0 ? (pesanan / klik * 100)      : 0
-      const roi          = biaya   > 0 ? (omzet / biaya)             : 0
-      const cpa          = pesanan > 0 ? (biaya / pesanan)           : 0
-      const aov          = pesanan > 0 ? (omzet / pesanan)           : 0
-      const rasio_atc    = klik    > 0 ? (atc / klik * 100)          : 0
-      const view_page_rate = klik  > 0 ? (viewPage / klik * 100)     : 0
+      const ctr           = impresi > 0 ? (klik / impresi * 100)     : 0
+      const cpc           = klik    > 0 ? (biaya / klik)              : 0
+      const cpm           = impresi > 0 ? (biaya / impresi * 1000)    : 0
+      const cvr           = klik    > 0 ? (pesanan / klik * 100)      : 0
+      const roi           = biaya   > 0 ? (omzet / biaya)             : 0
+      const cpa           = pesanan > 0 ? (biaya / pesanan)           : 0
+      const aov           = pesanan > 0 ? (omzet / pesanan)           : 0
+      const rasio_atc     = klik    > 0 ? (atc / klik * 100)          : 0
+      const view_page_rate = klik   > 0 ? (viewPage / klik * 100)     : 0
 
       return {
         tanggal:        row.date_start,
@@ -111,8 +107,7 @@ export async function POST(request) {
       }
     })
 
-    // Upsert ke Supabase — kalau tanggal + nama_kampanye sama, update bukan insert baru
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('ads_meta')
       .upsert(payload, {
         onConflict: 'tanggal,nama_kampanye',
