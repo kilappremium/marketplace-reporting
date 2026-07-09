@@ -505,10 +505,7 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
       const res  = await fetch('/api/meta-ads-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tanggal_start: syncStart,
-          tanggal_end:   syncEnd,
-        }),
+        body: JSON.stringify({ tanggal_start: syncStart, tanggal_end: syncEnd }),
       })
       const json = await res.json()
       if (json.error) throw new Error(json.error)
@@ -660,24 +657,20 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
         </div>
       )}
 
-      {/* ── PANEL SYNC META ADS ── */}
       {showSyncPanel && activeTab === 'meta' && (
-        <div style={{ background:'#E6F1FB', border:'1px solid #BFDBFE', borderRadius:12, padding:20, marginBottom:20, boxShadow:'0 1px 4px rgba(24,119,242,0.1)' }}>
+        <div style={{ background:'#E6F1FB', border:'1px solid #BFDBFE', borderRadius:12, padding:20, marginBottom:20 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <div style={{ width:32, height:32, borderRadius:8, background:'#1877F2', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>
-                📘
-              </div>
+              <div style={{ width:32, height:32, borderRadius:8, background:'#1877F2', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>📘</div>
               <div>
                 <p style={{ margin:0, fontWeight:700, fontSize:14, color:'#0C447C' }}>Sync Data dari Meta Ads</p>
-                <p style={{ margin:0, fontSize:11, color:'#3B82F6' }}>Data akan otomatis diimpor dari Meta Ads API ke Supabase</p>
+                <p style={{ margin:0, fontSize:11, color:'#3B82F6' }}>Data otomatis diimpor dari Meta Ads API ke Supabase</p>
               </div>
             </div>
             <button onClick={() => { setShowSyncPanel(false); setSyncMsg('') }}
               style={{ background:'none', border:'none', fontSize:20, cursor:'pointer', color:'#6B7280' }}>×</button>
           </div>
-
-          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:14 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:12 }}>
             <div>
               <label style={{ fontSize:11, color:'#0C447C', fontWeight:600, display:'block', marginBottom:4 }}>Dari Tanggal</label>
               <input type="date" value={syncStart} onChange={e => setSyncStart(e.target.value)}
@@ -690,52 +683,28 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
             </div>
             <div style={{ display:'flex', alignItems:'flex-end' }}>
               <button onClick={handleSyncMeta} disabled={syncLoading}
-                style={{
-                  padding:'8px 24px', borderRadius:8, border:'none', fontSize:13, fontWeight:600,
-                  cursor: syncLoading ? 'default' : 'pointer',
-                  background: syncLoading ? '#93C5FD' : '#1877F2',
-                  color:'#fff', display:'flex', alignItems:'center', gap:6,
-                }}>
-                {syncLoading ? (
-                  <>
-                    <span style={{ width:14, height:14, borderRadius:'50%', border:'2px solid rgba(255,255,255,0.4)', borderTop:'2px solid #fff', animation:'spin 1s linear infinite', display:'inline-block' }}/>
-                    Mensinkronkan...
-                  </>
-                ) : '🔄 Mulai Sync'}
+                style={{ padding:'8px 24px', borderRadius:8, border:'none', fontSize:13, fontWeight:600, cursor: syncLoading ? 'default' : 'pointer', background: syncLoading ? '#93C5FD' : '#1877F2', color:'#fff', display:'flex', alignItems:'center', gap:6 }}>
+                {syncLoading ? <><span style={{ width:14, height:14, borderRadius:'50%', border:'2px solid rgba(255,255,255,0.4)', borderTop:'2px solid #fff', animation:'spin 1s linear infinite', display:'inline-block' }}/>Mensinkronkan...</> : '🔄 Mulai Sync'}
               </button>
             </div>
           </div>
-
-          {/* Shortcut periode */}
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom: syncMsg ? 12 : 0 }}>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
             {[
-              { label: 'Hari ini', start: new Date().toISOString().split('T')[0], end: new Date().toISOString().split('T')[0] },
-              { label: '7 hari', start: (() => { const d = new Date(); d.setDate(d.getDate()-6); return d.toISOString().split('T')[0] })(), end: new Date().toISOString().split('T')[0] },
-              { label: 'Bulan ini', start: firstDayOfMonth, end: lastDayOfMonth },
-              { label: '30 hari', start: (() => { const d = new Date(); d.setDate(d.getDate()-29); return d.toISOString().split('T')[0] })(), end: new Date().toISOString().split('T')[0] },
+              { label:'Hari ini', s: new Date().toISOString().split('T')[0], e: new Date().toISOString().split('T')[0] },
+              { label:'7 hari',   s: (() => { const d=new Date(); d.setDate(d.getDate()-6); return d.toISOString().split('T')[0] })(), e: new Date().toISOString().split('T')[0] },
+              { label:'Bulan ini', s: firstDayOfMonth, e: lastDayOfMonth },
             ].map(p => (
-              <button key={p.label} onClick={() => { setSyncStart(p.start); setSyncEnd(p.end) }}
-                style={{ padding:'4px 12px', borderRadius:20, fontSize:11, cursor:'pointer', border:'1px solid #93C5FD', background: syncStart === p.start && syncEnd === p.end ? '#1877F2' : '#fff', color: syncStart === p.start && syncEnd === p.end ? '#fff' : '#0C447C', fontWeight:500 }}>
+              <button key={p.label} onClick={() => { setSyncStart(p.s); setSyncEnd(p.e) }}
+                style={{ padding:'4px 12px', borderRadius:20, fontSize:11, cursor:'pointer', border:'1px solid #93C5FD', background: syncStart===p.s&&syncEnd===p.e ? '#1877F2' : '#fff', color: syncStart===p.s&&syncEnd===p.e ? '#fff' : '#0C447C', fontWeight:500 }}>
                 {p.label}
               </button>
             ))}
           </div>
-
           {syncMsg && (
-            <div style={{
-              marginTop:12, padding:'10px 14px', borderRadius:8, fontSize:13,
-              background: syncMsg.startsWith('✅') ? '#DCFCE7' : '#FEE2E2',
-              color:      syncMsg.startsWith('✅') ? '#166534'  : '#991B1B',
-              border:     syncMsg.startsWith('✅') ? '1px solid #BBF7D0' : '1px solid #FECACA',
-            }}>
+            <div style={{ padding:'10px 14px', borderRadius:8, fontSize:13, background: syncMsg.startsWith('✅')?'#DCFCE7':'#FEE2E2', color: syncMsg.startsWith('✅')?'#166534':'#991B1B', border: syncMsg.startsWith('✅')?'1px solid #BBF7D0':'1px solid #FECACA' }}>
               {syncMsg}
-              <button onClick={() => setSyncMsg('')} style={{ float:'right', background:'none', border:'none', cursor:'pointer', fontSize:14, color:'inherit' }}>×</button>
             </div>
           )}
-
-          <div style={{ marginTop:12, padding:'10px 14px', background:'rgba(255,255,255,0.6)', borderRadius:8, fontSize:12, color:'#3B82F6' }}>
-            ℹ️ Data yang sudah ada untuk periode yang sama akan diperbarui (upsert), tidak akan duplikat.
-          </div>
         </div>
       )}
 
@@ -915,7 +884,6 @@ Jawab dalam Bahasa Indonesia yang natural. Gunakan angka dari data di atas saat 
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Tombol Sync Meta Ads — hanya muncul di tab Meta */}
           {activeTab === 'meta' && (
             <button onClick={() => setShowSyncPanel(o => !o)}
               style={{
