@@ -150,7 +150,10 @@ export default function DashboardPage() {
     return `Minggu lalu (${lastWeek.from} s/d ${lastWeek.to})`
   })()
 
-  useEffect(() => { fetchAll(); fetchDataPenjualan() }, [])
+  useEffect(() => {
+    fetchAll()
+    fetchDataPenjualan()
+  }, [])
 
   useEffect(() => {
     if (!allRawAffiliate.length && !allRawLive.length) return
@@ -270,13 +273,14 @@ export default function DashboardPage() {
   }
 
   async function fetchDataPenjualan() {
-    const { data: rows } = await supabase
+    const { data: rows, error } = await supabase
       .from('penjualan_harian')
-      .select('*')
+      .select('tanggal,channel,brand,gmv,visitor,pesanan_masuk,produk_terjual,pesanan_batal,cancel_rate,aov_order,visitor_cvr,customer_baru,customer_repeat,total_customer,repeat_customer_rate,gagal_pickup,fail_to_pickup_rate,submission_campaign,gmv_affiliate,cost_affiliate,pesanan_affiliate,roi_affiliate,biaya_ads,omzet_ads,pesanan_ads')
       .gte('tanggal', '2026-01-01')
       .lte('tanggal', new Date().toISOString().split('T')[0])
       .order('tanggal', { ascending: false })
-    setDataPenjualan(rows || [])
+    if (!error) setDataPenjualan(rows || [])
+    else console.error('Error fetch penjualan:', error)
   }
 
   async function handleSubmitPenjualan() {
@@ -307,36 +311,75 @@ export default function DashboardPage() {
     }
     // Default: bulan ini
     const today = new Date()
-    const bulanIni = today.toISOString().slice(0, 7)
+    const y = today.getFullYear()
+    const m = String(today.getMonth() + 1).padStart(2, '0')
+    const bulanIni = `${y}-${m}`
     return dataPenjualan.filter(r =>
       r.tanggal && r.tanggal.startsWith(bulanIni))
   })()
 
-  const penjualanPrevFiltered = dataPenjualan.filter(r => {
-    const inPeriod = filterStart && filterEnd
-      ? (() => {
-          const start = new Date(filterStart)
-          const end = new Date(filterEnd)
-          const durasi = Math.round((end - start)/(1000*60*60*24)) + 1
-          const prevEnd = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1)
-          const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - durasi + 1)
-          return r.tanggal >= prevStart.toISOString().split('T')[0] && r.tanggal <= prevEnd.toISOString().split('T')[0]
-        })()
-      : r.tanggal >= lastWeek.from && r.tanggal <= lastWeek.to
-    const inChannel = !filterChannel || filterChannel === 'Semua Channel'
-      ? true : r.channel?.toLowerCase() === filterChannel.toLowerCase()
-    const inBrand = !filterBrand || filterBrand === 'Semua Brand'
-      ? true : (r.brand || '').toLowerCase() === filterBrand.toLowerCase()
-    return inPeriod && inChannel && inBrand
-  })
+  const penjualanPrev = (() => {
+    if (!dataPenjualan || dataPenjualan.length === 0) return []
+    if (filterStart && filterEnd) {
+      const start = new Date(filterStart)
+      const end = new Date(filterEnd)
+      const durasi = Math.round((end - start) / (1000*60*60*24)) + 1
+      const prevEnd = new Date(start)
+      prevEnd.setDate(prevEnd.getDate() - 1)
+      const prevStart = new Date(prevEnd)
+      prevStart.setDate(prevStart.getDate() - durasi + 1)
+      return dataPenjualan.filter(r =>
+        r.tanggal >= prevStart.toISOString().split('T')[0] &&
+        r.tanggal <= prevEnd.toISOString().split('T')[0])
+    }
+    // Default: bulan lalu
+    const today = new Date()
+    const y = today.getFullYear()
+    const m = today.getMonth()
+    const prevY = m === 0 ? y - 1 : y
+    const prevM = m === 0 ? 12 : m
+    const bulanLalu = `${prevY}-${String(prevM).padStart(2,'0')}`
+    return dataPenjualan.filter(r =>
+      r.tanggal && r.tanggal.startsWith(bulanLalu))
+  })()
 
-  // ─── Kalkulasi metrics ────────────────────────────────
-  const totalGmv = penjualanFiltered.reduce(
-    (a, b) => a + (Number(b.gmv) || 0), 0)
-  const prevTotalGmv = sum(penjualanPrevFiltered, 'gmv')
-  const gmvAff = penjualanFiltered.reduce(
-    (a, b) => a + (Number(b.gmv_affiliate) || 0), 0)
-  const prevGmvAff   = sum(penjualanPrevFiltered, 'gmv_affiliate')
+  const totalGmv = penjualanFiltered.reduce((a,b) => a+(Number(b.gmv)||0), 0)
+  const prevTotalGmv = penjualanPrev.reduce((a,b) => a+(Number(b.gmv)||0), 0)
+
+  const gmvAff = penjualanFiltered.reduce((a,b) => a+(Number(b.gmv_affiliate)||0), 0)
+  const prevGmvAff = penjualanPrev.reduce((a,b) => a+(Number(b.gmv_affiliate)||0), 0)
+
+  const totalVisitor = penjualanFiltered.reduce((a,b) => a+(Number(b.visitor)||0), 0)
+  const prevVisitor = penjualanPrev.reduce((a,b) => a+(Number(b.visitor)||0), 0)
+
+  const totalPesanan = penjualanFiltered.reduce((a,b) => a+(Number(b.pesanan_masuk)||0), 0)
+  const prevPesanan = penjualanPrev.reduce((a,b) => a+(Number(b.pesanan_masuk)||0), 0)
+
+  const totalBatal = penjualanFiltered.reduce((a,b) => a+(Number(b.pesanan_batal)||0), 0)
+  const cancelRate = totalPesanan > 0 ? (totalBatal/totalPesanan*100) : 0
+
+  const totalGagalPickup = penjualanFiltered.reduce((a,b) => a+(Number(b.gagal_pickup)||0), 0)
+  const failPickupRate = totalPesanan > 0 ? (totalGagalPickup/totalPesanan*100) : 0
+
+  const totalAovSum = penjualanFiltered.reduce((a,b) => a+(Number(b.gmv)||0), 0)
+  const aovOrder = totalPesanan > 0 ? (totalAovSum/totalPesanan) : 0
+
+  const cvr = totalVisitor > 0 ? (totalPesanan/totalVisitor*100) : 0
+
+  const growthGmv = prevTotalGmv > 0
+    ? ((totalGmv-prevTotalGmv)/prevTotalGmv*100) : 0
+  const growthGmvAff = prevGmvAff > 0
+    ? ((gmvAff-prevGmvAff)/prevGmvAff*100) : 0
+  const growthVisitor = prevVisitor > 0
+    ? ((totalVisitor-prevVisitor)/prevVisitor*100) : 0
+  const growthPesanan = prevPesanan > 0
+    ? ((totalPesanan-prevPesanan)/prevPesanan*100) : 0
+
+  console.log('penjualanFiltered count:', penjualanFiltered.length)
+  console.log('totalGmv:', totalGmv)
+  console.log('gmvAff:', gmvAff)
+  console.log('totalVisitor:', totalVisitor)
+
   const gmvLive      = sum(weeklyLive,'gmv')
 
   const adsFiltered = (() => {
@@ -391,57 +434,36 @@ export default function DashboardPage() {
     prevAdsFiltered.tiktok.reduce((a,b)=>a+(Number(b.omzet)||0),0) +
     prevAdsFiltered.meta.reduce((a,b)=>a+(Number(b.omzet)||0),0)
 
-  const totalPesanan = sum(weeklyAffiliate,'pesanan') + sum(weeklyLive,'pesanan')
-  const prevPesanan  = sum(prevWeekAffiliate,'pesanan') + sum(prevLive,'pesanan')
-
   const totalSesiLive = weeklyLive.length
   const prevSesiLive  = prevLive.length
 
-  const spVisitor        = penjualanFiltered.reduce(
-    (a, b) => a + (Number(b.visitor) || 0), 0)
-  const spPesanan        = sum(penjualanFiltered,'pesanan_masuk')
-  const spGmv            = sum(penjualanFiltered,'gmv')
-  const spBatal          = sum(penjualanFiltered,'pesanan_batal')
-  const spGagalPickup    = sum(penjualanFiltered,'gagal_pickup')
-  const spGmvAffiliate   = sum(penjualanFiltered,'gmv_affiliate')
-  const spCostAffiliate  = sum(penjualanFiltered,'cost_affiliate')
-  const spCancelRate     = spPesanan      > 0 ? spBatal       / spPesanan      * 100 : 0
-  const spCvr            = spVisitor      > 0 ? spPesanan     / spVisitor      * 100 : 0
-  const spAov            = spPesanan      > 0 ? spGmv         / spPesanan             : 0
-  const spFailRate       = spPesanan      > 0 ? spGagalPickup / spPesanan      * 100 : 0
+  const prevTotalBatal = penjualanPrev.reduce((a,b) => a+(Number(b.pesanan_batal)||0), 0)
+  const prevTotalGagalPickup = penjualanPrev.reduce((a,b) => a+(Number(b.gagal_pickup)||0), 0)
+  const prevCancelRate = prevPesanan > 0 ? (prevTotalBatal/prevPesanan*100) : 0
+  const prevCvr = prevVisitor > 0 ? (prevPesanan/prevVisitor*100) : 0
+  const prevAovSum = penjualanPrev.reduce((a,b) => a+(Number(b.gmv)||0), 0)
+  const prevAovOrder = prevPesanan > 0 ? (prevAovSum/prevPesanan) : 0
 
-  const prevSpVisitor   = sum(penjualanPrevFiltered, 'visitor')
-  const prevSpPesanan   = sum(penjualanPrevFiltered, 'pesanan_masuk')
-  const prevSpGmv       = sum(penjualanPrevFiltered, 'gmv')
-  const prevSpBatal     = sum(penjualanPrevFiltered, 'pesanan_batal')
-  const prevSpGagal     = sum(penjualanPrevFiltered, 'gagal_pickup')
-  const prevSpCancelRate  = prevSpPesanan > 0 ? prevSpBatal / prevSpPesanan * 100 : 0
-  const prevSpCvr         = prevSpVisitor  > 0 ? prevSpPesanan / prevSpVisitor * 100 : 0
-  const prevSpAov         = prevSpPesanan  > 0 ? prevSpGmv / prevSpPesanan : 0
-  const prevSpFailRate    = prevSpPesanan  > 0 ? prevSpGagal / prevSpPesanan * 100 : 0
+  const prevFailPickupRate = prevPesanan > 0 ? (prevTotalGagalPickup/prevPesanan*100) : 0
 
   const growth = (curr, prev) => prev > 0 ? ((curr - prev)/prev*100) : 0
-  const growthGmv     = growth(totalGmv,     prevTotalGmv)
-  const growthPesanan = growth(totalPesanan, prevPesanan)
   const growthLive    = growth(totalSesiLive, prevSesiLive)
 
   const growthOmzetAds = prevOmzetAds > 0
     ? ((totalOmzetAds-prevOmzetAds)/prevOmzetAds*100) : 0
-  const growthGmvAff      = growth(gmvAff,          prevGmvAff)
   const growthGmvLive     = growth(gmvLive,         prevGmvLive)
-  const growthVisitor     = growth(spVisitor,       prevSpVisitor)
-  const growthCvr         = growth(spCvr,           prevSpCvr)
-  const growthAov         = growth(spAov,           prevSpAov)
-  const growthCancelRate  = growth(spCancelRate,    prevSpCancelRate)
-  const growthFailRate    = growth(spFailRate,      prevSpFailRate)
+  const growthCvr         = growth(cvr,             prevCvr)
+  const growthAov         = growth(aovOrder,         prevAovOrder)
+  const growthCancelRate  = growth(cancelRate,       prevCancelRate)
+  const growthFailRate    = growth(failPickupRate,   prevFailPickupRate)
 
   // ─── Anomali ──────────────────────────────────────────
   const anomali = []
   if (growthGmv     < -10) anomali.push(`GMV turun ${Math.abs(growthGmv).toFixed(1)}% vs periode sebelumnya`)
   if (growthPesanan < -10) anomali.push(`Pesanan turun ${Math.abs(growthPesanan).toFixed(1)}% vs periode sebelumnya`)
   if (totalSesiLive === 0) anomali.push(`Tidak ada sesi livestream periode ini`)
-  if (spCancelRate  > 5)  anomali.push(`Cancel rate ${spCancelRate.toFixed(1)}% — di atas threshold 5%`)
-  if (spFailRate    > 3)  anomali.push(`Fail to pickup rate ${spFailRate.toFixed(1)}% — perlu ditangani`)
+  if (cancelRate  > 5)  anomali.push(`Cancel rate ${cancelRate.toFixed(1)}% — di atas threshold 5%`)
+  if (failPickupRate > 3)  anomali.push(`Fail to pickup rate ${failPickupRate.toFixed(1)}% — perlu ditangani`)
 
   // ─── Channel data ─────────────────────────────────────
   const channelData = [
@@ -465,11 +487,11 @@ Data ${periodeLabel}:
 - GMV Ads: Rp ${gmvAdsTotal.toLocaleString('id-ID')}
 - GMV Affiliate: Rp ${gmvAff.toLocaleString('id-ID')}
 - GMV Livestream: Rp ${gmvLive.toLocaleString('id-ID')}
-- Visitor: ${spVisitor.toLocaleString('id-ID')}
-- CVR: ${spCvr.toFixed(2)}%
-- AOV: Rp ${spAov.toLocaleString('id-ID')}
-- Cancel Rate: ${spCancelRate.toFixed(2)}%
-- Fail to Pickup Rate: ${spFailRate.toFixed(2)}%
+- Visitor: ${totalVisitor.toLocaleString('id-ID')}
+- CVR: ${cvr.toFixed(2)}%
+- AOV: Rp ${aovOrder.toLocaleString('id-ID')}
+- Cancel Rate: ${cancelRate.toFixed(2)}%
+- Fail to Pickup Rate: ${failPickupRate.toFixed(2)}%
 - Sesi Live: ${totalSesiLive}
 ${anomali.length > 0 ? 'Anomali: ' + anomali.join(', ') : ''}
 
@@ -494,11 +516,11 @@ DATA DASHBOARD (${periodeLabel}):
 - GMV Livestream: ${fmtRp(gmvLive)}
 - Total Pesanan: ${fmt(totalPesanan)} (growth: ${growthPesanan.toFixed(1)}%)
 - Sesi Livestream: ${totalSesiLive} sesi
-- Visitor: ${fmt(spVisitor)}
-- CVR: ${fmtPct(spCvr)}
-- AOV: ${spAov > 0 ? fmtRp(spAov) : '-'}
-- Cancel Rate: ${fmtPct(spCancelRate)}
-- Fail to Pickup Rate: ${fmtPct(spFailRate)}
+- Visitor: ${fmt(totalVisitor)}
+- CVR: ${fmtPct(cvr)}
+- AOV: ${aovOrder > 0 ? fmtRp(aovOrder) : '-'}
+- Cancel Rate: ${fmtPct(cancelRate)}
+- Fail to Pickup Rate: ${fmtPct(failPickupRate)}
 ${anomali.length > 0 ? `\nANOMALI TERDETEKSI:\n${anomali.map(a => '- ' + a).join('\n')}` : ''}
 ${filterChannel && filterChannel !== 'Semua Channel' ? `\nFilter channel aktif: ${filterChannel}` : ''}
 
@@ -913,11 +935,11 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
               <PerfCard label="GMV Ads"          value={fmtRp(totalOmzetAds)}             growth={growthOmzetAds}   sub="Shopee+TikTok+Meta (kolom omzet)"/>
               <PerfCard label="GMV Affiliate"    value={fmtRp(gmvAff)}                    growth={growthGmvAff}     sub="dari penjualan_harian (kolom gmv_affiliate)"/>
               <PerfCard label="GMV Livestream"   value={fmtRp(gmvLive)}                   growth={growthGmvLive}    sub={`${totalSesiLive} sesi`}/>
-              <PerfCard label="Visitor"          value={fmt(spVisitor)}                    growth={growthVisitor}    sub="dari penjualan_harian (kolom visitor)"/>
-              <PerfCard label="CVR"              value={fmtPct(spCvr)}                    growth={growthCvr}        sub={`${fmt(spPesanan)} pesanan / ${fmt(spVisitor)} visitor`}/>
-              <PerfCard label="AOV Order"        value={spAov > 0 ? fmtRp(spAov) : '—'}  growth={growthAov}        sub="avg nilai per pesanan"/>
-              <PerfCard label="Cancel Rate"      value={fmtPct(spCancelRate)}             growth={growthCancelRate} sub={`${fmt(spBatal)} batal / ${fmt(spPesanan)} pesanan`}    warn={spCancelRate > 5}/>
-              <PerfCard label="Fail to Pick Up"  value={fmtPct(spFailRate)}               growth={growthFailRate}   sub={`${fmt(spGagalPickup)} gagal pickup`}                   warn={spFailRate > 3}/>
+              <PerfCard label="Visitor"          value={fmt(totalVisitor)}                 growth={growthVisitor}    sub="dari penjualan_harian (kolom visitor)"/>
+              <PerfCard label="CVR"              value={fmtPct(cvr)}                      growth={growthCvr}        sub={`${fmt(totalPesanan)} pesanan / ${fmt(totalVisitor)} visitor`}/>
+              <PerfCard label="AOV Order"        value={aovOrder > 0 ? fmtRp(aovOrder) : '—'}  growth={growthAov}        sub="avg nilai per pesanan"/>
+              <PerfCard label="Cancel Rate"      value={fmtPct(cancelRate)}                 growth={growthCancelRate} sub={`${fmt(totalBatal)} batal / ${fmt(totalPesanan)} pesanan`}    warn={cancelRate > 5}/>
+              <PerfCard label="Fail to Pick Up"  value={fmtPct(failPickupRate)}             growth={growthFailRate}   sub={`${fmt(totalGagalPickup)} gagal pickup`}                   warn={failPickupRate > 3}/>
             </div>
           </div>
 
