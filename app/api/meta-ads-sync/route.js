@@ -1,10 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
-
 const META_AD_ACCOUNT_ID = process.env.act_3652029991679722 // act_3652029991679722
 const META_ACCESS_TOKEN  = process.env.EAAd4Sxlgbu0BRxgZAp5lYDR6atqcR4ZC5Nny6VqQh8KGjjjIZAZBiBuzZCDDsPLCuYmbwI1qr8ON3HC4RbNFMh15Hf5MUotmZAhsZANYNCRYNzjtM4uSGZCy9MWQZAgQjTJ0mOtXjiElNS3qwZBqNqFz5dGMLO4bJZCbMX3OryaEtNtvXGGf8ZCun1vzZCZCM5IfiFenFB9IMnyXuTZALlWPcV8cW0gk7UIiJY3il5ilQjcRLMGZCZAJ7mh7diSK4xVoaHLoCzsgcewJuB0si3ukZD
 
@@ -31,6 +26,11 @@ function extractAction(actions, actionType) {
 
 export async function POST(request) {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
+
     const { tanggal_start, tanggal_end } = await request.json()
 
     if (!META_ACCESS_TOKEN) {
