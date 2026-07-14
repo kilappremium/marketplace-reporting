@@ -343,45 +343,111 @@ export default function DashboardPage() {
       r.tanggal && r.tanggal.startsWith(bulanLalu))
   })()
 
-  const totalGmv = penjualanFiltered.reduce((a,b) => a+(Number(b.gmv)||0), 0)
-  const prevTotalGmv = penjualanPrev.reduce((a,b) => a+(Number(b.gmv)||0), 0)
+  // ── Dari penjualan_harian (penjualanFiltered) ──────────
+  const totalGmv = penjualanFiltered.reduce(
+    (a,b) => a+(Number(b.gmv)||0), 0)
+  const prevTotalGmv = penjualanPrev.reduce(
+    (a,b) => a+(Number(b.gmv)||0), 0)
 
-  const gmvAff = penjualanFiltered.reduce((a,b) => a+(Number(b.gmv_affiliate)||0), 0)
-  const prevGmvAff = penjualanPrev.reduce((a,b) => a+(Number(b.gmv_affiliate)||0), 0)
+  const omzetAds = penjualanFiltered.reduce(
+    (a,b) => a+(Number(b.omzet_ads)||0), 0)
+  const prevOmzetAds = penjualanPrev.reduce(
+    (a,b) => a+(Number(b.omzet_ads)||0), 0)
 
-  const totalVisitor = penjualanFiltered.reduce((a,b) => a+(Number(b.visitor)||0), 0)
-  const prevVisitor = penjualanPrev.reduce((a,b) => a+(Number(b.visitor)||0), 0)
+  const gmvAffiliate = penjualanFiltered.reduce(
+    (a,b) => a+(Number(b.gmv_affiliate)||0), 0)
+  const prevGmvAffiliate = penjualanPrev.reduce(
+    (a,b) => a+(Number(b.gmv_affiliate)||0), 0)
 
-  const totalPesanan = penjualanFiltered.reduce((a,b) => a+(Number(b.pesanan_masuk)||0), 0)
-  const prevPesanan = penjualanPrev.reduce((a,b) => a+(Number(b.pesanan_masuk)||0), 0)
+  const totalVisitor = penjualanFiltered.reduce(
+    (a,b) => a+(Number(b.visitor)||0), 0)
+  const prevTotalVisitor = penjualanPrev.reduce(
+    (a,b) => a+(Number(b.visitor)||0), 0)
 
-  const totalBatal = penjualanFiltered.reduce((a,b) => a+(Number(b.pesanan_batal)||0), 0)
-  const cancelRate = totalPesanan > 0 ? (totalBatal/totalPesanan*100) : 0
+  const totalPesananMasuk = penjualanFiltered.reduce(
+    (a,b) => a+(Number(b.pesanan_masuk)||0), 0)
+  const prevPesananMasuk = penjualanPrev.reduce(
+    (a,b) => a+(Number(b.pesanan_masuk)||0), 0)
 
-  const totalGagalPickup = penjualanFiltered.reduce((a,b) => a+(Number(b.gagal_pickup)||0), 0)
-  const failPickupRate = totalPesanan > 0 ? (totalGagalPickup/totalPesanan*100) : 0
+  const totalPesananBatal = penjualanFiltered.reduce(
+    (a,b) => a+(Number(b.pesanan_batal)||0), 0)
 
-  const totalAovSum = penjualanFiltered.reduce((a,b) => a+(Number(b.gmv)||0), 0)
-  const aovOrder = totalPesanan > 0 ? (totalAovSum/totalPesanan) : 0
+  const totalGagalPickup = penjualanFiltered.reduce(
+    (a,b) => a+(Number(b.gagal_pickup)||0), 0)
 
-  const cvr = totalVisitor > 0 ? (totalPesanan/totalVisitor*100) : 0
+  // Kalkulasi otomatis
+  const visitorCvr = totalVisitor > 0
+    ? (totalPesananMasuk / totalVisitor * 100) : 0
+  const prevVisitorCvr = prevTotalVisitor > 0
+    ? (prevPesananMasuk / prevTotalVisitor * 100) : 0
 
-  const growthGmv = prevTotalGmv > 0
-    ? ((totalGmv-prevTotalGmv)/prevTotalGmv*100) : 0
-  const growthGmvAff = prevGmvAff > 0
-    ? ((gmvAff-prevGmvAff)/prevGmvAff*100) : 0
-  const growthVisitor = prevVisitor > 0
-    ? ((totalVisitor-prevVisitor)/prevVisitor*100) : 0
-  const growthPesanan = prevPesanan > 0
-    ? ((totalPesanan-prevPesanan)/prevPesanan*100) : 0
+  const aovOrder = totalPesananMasuk > 0
+    ? (totalGmv / totalPesananMasuk) : 0
+  const prevAovOrder = prevPesananMasuk > 0
+    ? (prevTotalGmv / prevPesananMasuk) : 0
 
-  console.log('penjualanFiltered count:', penjualanFiltered.length)
-  console.log('totalGmv:', totalGmv)
-  console.log('gmvAff:', gmvAff)
-  console.log('totalVisitor:', totalVisitor)
+  const cancelRate = totalPesananMasuk > 0
+    ? (totalPesananBatal / totalPesananMasuk * 100) : 0
 
-  const gmvLive      = sum(weeklyLive,'gmv')
+  const failPickupRate = totalPesananMasuk > 0
+    ? (totalGagalPickup / totalPesananMasuk * 100) : 0
 
+  // ── GMV Livestream dari tabel livestream ──────────────
+  const liveFiltered = (() => {
+    const allLive = [...(allRawLive || [])]
+    if (filterStart && filterEnd) {
+      return allLive.filter(r =>
+        r.tanggal >= filterStart && r.tanggal <= filterEnd)
+    }
+    const today = new Date()
+    const y = today.getFullYear()
+    const m = String(today.getMonth()+1).padStart(2,'0')
+    const bulanIni = `${y}-${m}`
+    return allLive.filter(r => r.tanggal && r.tanggal.startsWith(bulanIni))
+  })()
+
+  const gmvLivestream = liveFiltered.reduce(
+    (a,b) => a+(Number(b.gmv)||0), 0)
+
+  const livePrev = (() => {
+    const allLive = [...(allRawLive || [])]
+    if (filterStart && filterEnd) {
+      const start = new Date(filterStart)
+      const end = new Date(filterEnd)
+      const durasi = Math.round((end-start)/(1000*60*60*24))+1
+      const prevEnd = new Date(start)
+      prevEnd.setDate(prevEnd.getDate()-1)
+      const prevStart = new Date(prevEnd)
+      prevStart.setDate(prevStart.getDate()-durasi+1)
+      return allLive.filter(r =>
+        r.tanggal >= prevStart.toISOString().split('T')[0] &&
+        r.tanggal <= prevEnd.toISOString().split('T')[0])
+    }
+    const today = new Date()
+    const y = today.getFullYear()
+    const m = today.getMonth()
+    const prevY = m === 0 ? y-1 : y
+    const prevM = m === 0 ? 12 : m
+    const bulanLalu = `${prevY}-${String(prevM).padStart(2,'0')}`
+    return allLive.filter(r => r.tanggal && r.tanggal.startsWith(bulanLalu))
+  })()
+
+  const prevGmvLivestream = livePrev.reduce(
+    (a,b) => a+(Number(b.gmv)||0), 0)
+
+  // Growth helpers
+  const growthPct = (curr, prev) => prev > 0
+    ? ((curr-prev)/prev*100) : 0
+
+  const growthGmv          = growthPct(totalGmv, prevTotalGmv)
+  const growthOmzetAds     = growthPct(omzetAds, prevOmzetAds)
+  const growthGmvAffiliate = growthPct(gmvAffiliate, prevGmvAffiliate)
+  const growthGmvLive      = growthPct(gmvLivestream, prevGmvLivestream)
+  const growthVisitor      = growthPct(totalVisitor, prevTotalVisitor)
+  const growthCvr          = growthPct(visitorCvr, prevVisitorCvr)
+  const growthAov          = growthPct(aovOrder, prevAovOrder)
+
+  // Ads per platform (untuk section Biaya & ROAS)
   const adsFiltered = (() => {
     const filterFn = (arr) => {
       if (filterStart && filterEnd) {
@@ -398,78 +464,23 @@ export default function DashboardPage() {
     }
   })()
 
-  const prevAdsFiltered = (() => {
-    const prevFilterFn = (arr) => {
-      if (filterStart && filterEnd) {
-        const start = new Date(filterStart)
-        const end = new Date(filterEnd)
-        const durasi = Math.round((end-start)/(1000*60*60*24))+1
-        const prevEnd = new Date(start)
-        prevEnd.setDate(prevEnd.getDate()-1)
-        const prevStart = new Date(prevEnd)
-        prevStart.setDate(prevStart.getDate()-durasi+1)
-        return (arr||[]).filter(r =>
-          r.tanggal >= prevStart.toISOString().split('T')[0] &&
-          r.tanggal <= prevEnd.toISOString().split('T')[0])
-      }
-      return (arr||[]).filter(r =>
-        r.tanggal >= lastWeek.from && r.tanggal <= lastWeek.to)
-    }
-    return {
-      shopee: prevFilterFn(allRawAds.shopee),
-      tiktok: prevFilterFn(allRawAds.tiktok),
-      meta: prevFilterFn(allRawAds.meta),
-    }
-  })()
-
   const gmvAdsShopee = adsFiltered.shopee.reduce((a,b)=>a+(Number(b.omzet)||0),0)
   const gmvAdsTiktok = adsFiltered.tiktok.reduce((a,b)=>a+(Number(b.omzet)||0),0)
   const gmvAdsMeta   = adsFiltered.meta.reduce((a,b)=>a+(Number(b.omzet)||0),0)
-  const totalOmzetAds = gmvAdsShopee + gmvAdsTiktok + gmvAdsMeta
-  const gmvAdsTotal  = totalOmzetAds
-
-  const prevGmvLive  = sum(prevLive,'gmv')
-  const prevOmzetAds =
-    prevAdsFiltered.shopee.reduce((a,b)=>a+(Number(b.omzet)||0),0) +
-    prevAdsFiltered.tiktok.reduce((a,b)=>a+(Number(b.omzet)||0),0) +
-    prevAdsFiltered.meta.reduce((a,b)=>a+(Number(b.omzet)||0),0)
-
-  const totalSesiLive = weeklyLive.length
-  const prevSesiLive  = prevLive.length
-
-  const prevTotalBatal = penjualanPrev.reduce((a,b) => a+(Number(b.pesanan_batal)||0), 0)
-  const prevTotalGagalPickup = penjualanPrev.reduce((a,b) => a+(Number(b.gagal_pickup)||0), 0)
-  const prevCancelRate = prevPesanan > 0 ? (prevTotalBatal/prevPesanan*100) : 0
-  const prevCvr = prevVisitor > 0 ? (prevPesanan/prevVisitor*100) : 0
-  const prevAovSum = penjualanPrev.reduce((a,b) => a+(Number(b.gmv)||0), 0)
-  const prevAovOrder = prevPesanan > 0 ? (prevAovSum/prevPesanan) : 0
-
-  const prevFailPickupRate = prevPesanan > 0 ? (prevTotalGagalPickup/prevPesanan*100) : 0
-
-  const growth = (curr, prev) => prev > 0 ? ((curr - prev)/prev*100) : 0
-  const growthLive    = growth(totalSesiLive, prevSesiLive)
-
-  const growthOmzetAds = prevOmzetAds > 0
-    ? ((totalOmzetAds-prevOmzetAds)/prevOmzetAds*100) : 0
-  const growthGmvLive     = growth(gmvLive,         prevGmvLive)
-  const growthCvr         = growth(cvr,             prevCvr)
-  const growthAov         = growth(aovOrder,         prevAovOrder)
-  const growthCancelRate  = growth(cancelRate,       prevCancelRate)
-  const growthFailRate    = growth(failPickupRate,   prevFailPickupRate)
 
   // ─── Anomali ──────────────────────────────────────────
   const anomali = []
-  if (growthGmv     < -10) anomali.push(`GMV turun ${Math.abs(growthGmv).toFixed(1)}% vs periode sebelumnya`)
-  if (growthPesanan < -10) anomali.push(`Pesanan turun ${Math.abs(growthPesanan).toFixed(1)}% vs periode sebelumnya`)
-  if (totalSesiLive === 0) anomali.push(`Tidak ada sesi livestream periode ini`)
-  if (cancelRate  > 5)  anomali.push(`Cancel rate ${cancelRate.toFixed(1)}% — di atas threshold 5%`)
-  if (failPickupRate > 3)  anomali.push(`Fail to pickup rate ${failPickupRate.toFixed(1)}% — perlu ditangani`)
+  if (growthGmv < -10) anomali.push(`GMV turun ${Math.abs(growthGmv).toFixed(1)}% vs periode sebelumnya`)
+  if (growthPct(totalPesananMasuk, prevPesananMasuk) < -10) anomali.push(`Pesanan turun ${Math.abs(growthPct(totalPesananMasuk, prevPesananMasuk)).toFixed(1)}% vs periode sebelumnya`)
+  if (liveFiltered.length === 0) anomali.push(`Tidak ada sesi livestream periode ini`)
+  if (cancelRate > 5) anomali.push(`Cancel rate ${cancelRate.toFixed(1)}% — di atas threshold 5%`)
+  if (failPickupRate > 2) anomali.push(`Fail to pickup rate ${failPickupRate.toFixed(1)}% — perlu ditangani`)
 
   // ─── Channel data ─────────────────────────────────────
   const channelData = [
-    { channel:'Affiliate',  gmv: gmvAff,      color:'#FF6B35' },
-    { channel:'Livestream', gmv: gmvLive,     color:'#FF8C00' },
-    { channel:'Ads',        gmv: gmvAdsTotal, color:'#FFB347' },
+    { channel:'Affiliate',  gmv: gmvAffiliate,  color:'#FF6B35' },
+    { channel:'Livestream', gmv: gmvLivestream, color:'#FF8C00' },
+    { channel:'Ads',        gmv: omzetAds,      color:'#FFB347' },
   ].filter(c => c.gmv > 0).sort((a,b) => b.gmv - a.gmv)
   const totalChannel = channelData.reduce((a,b) => a + b.gmv, 0)
 
@@ -484,15 +495,15 @@ Gunakan **bold** untuk angka penting.
 
 Data ${periodeLabel}:
 - GMV Total: Rp ${totalGmv.toLocaleString('id-ID')} (${growthGmv.toFixed(1)}%)
-- GMV Ads: Rp ${gmvAdsTotal.toLocaleString('id-ID')}
-- GMV Affiliate: Rp ${gmvAff.toLocaleString('id-ID')}
-- GMV Livestream: Rp ${gmvLive.toLocaleString('id-ID')}
+- Omzet Ads: Rp ${omzetAds.toLocaleString('id-ID')}
+- GMV Affiliate: Rp ${gmvAffiliate.toLocaleString('id-ID')}
+- GMV Livestream: Rp ${gmvLivestream.toLocaleString('id-ID')}
 - Visitor: ${totalVisitor.toLocaleString('id-ID')}
-- CVR: ${cvr.toFixed(2)}%
+- Visitor CVR: ${visitorCvr.toFixed(2)}%
 - AOV: Rp ${aovOrder.toLocaleString('id-ID')}
 - Cancel Rate: ${cancelRate.toFixed(2)}%
 - Fail to Pickup Rate: ${failPickupRate.toFixed(2)}%
-- Sesi Live: ${totalSesiLive}
+- Sesi Live: ${liveFiltered.length}
 ${anomali.length > 0 ? 'Anomali: ' + anomali.join(', ') : ''}
 
 Berikan: ringkasan performa, temuan penting, rekomendasi.`
@@ -511,13 +522,13 @@ Kamu memiliki akses ke data dashboard berikut dan harus menjawab pertanyaan berd
 
 DATA DASHBOARD (${periodeLabel}):
 - Total GMV: ${fmtRp(totalGmv)} (growth: ${growthGmv.toFixed(1)}%)
-- GMV Ads: ${fmtRp(gmvAdsTotal)}
-- GMV Affiliate: ${fmtRp(gmvAff)}
-- GMV Livestream: ${fmtRp(gmvLive)}
-- Total Pesanan: ${fmt(totalPesanan)} (growth: ${growthPesanan.toFixed(1)}%)
-- Sesi Livestream: ${totalSesiLive} sesi
+- Omzet Ads: ${fmtRp(omzetAds)}
+- GMV Affiliate: ${fmtRp(gmvAffiliate)}
+- GMV Livestream: ${fmtRp(gmvLivestream)}
+- Total Pesanan: ${fmt(totalPesananMasuk)} (growth: ${growthPct(totalPesananMasuk, prevPesananMasuk).toFixed(1)}%)
+- Sesi Livestream: ${liveFiltered.length} sesi
 - Visitor: ${fmt(totalVisitor)}
-- CVR: ${fmtPct(cvr)}
+- Visitor CVR: ${fmtPct(visitorCvr)}
 - AOV: ${aovOrder > 0 ? fmtRp(aovOrder) : '-'}
 - Cancel Rate: ${fmtPct(cancelRate)}
 - Fail to Pickup Rate: ${fmtPct(failPickupRate)}
@@ -565,16 +576,22 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
   }
 
   // ─── Komponen ─────────────────────────────────────────
-  function GrowthBadge({ value }) {
+  function GrowthBadge({ value, light }) {
     const up = Number(value) >= 0
     return (
-      <span title={`vs ${compareLabel}`} style={{
-        fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20,
-        background: up ? '#DCFCE7' : '#FEE2E2', color: up ? '#166534' : '#991B1B',
-        display:'inline-flex', alignItems:'center', gap:3, cursor:'help',
+      <span style={{
+        fontSize:11, fontWeight:600,
+        padding:'2px 8px', borderRadius:20,
+        display:'inline-flex', alignItems:'center', gap:3,
+        background: light
+          ? (up ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)')
+          : (up ? '#DCFCE7' : '#FEE2E2'),
+        color: light ? '#fff' : (up ? '#166534' : '#991B1B'),
       }}>
         {up ? '▲' : '▼'} {Math.abs(Number(value)).toFixed(1)}%
-        <span style={{fontSize:10,opacity:0.8}}>vs periode sebelumnya</span>
+        <span style={{ fontWeight:400, opacity:0.75, fontSize:10 }}>
+          vs periode sebelumnya
+        </span>
       </span>
     )
   }
@@ -917,29 +934,147 @@ Jawab dalam Bahasa Indonesia yang natural dan profesional. Gunakan angka dari da
               </div>
             </div>
 
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12}}>
+            <div style={{ display:'grid',
+              gridTemplateColumns:'repeat(auto-fit, minmax(200px,1fr))',
+              gap:14, marginBottom:0 }}>
+
+              {/* 1. GMV - highlight utama */}
               <div style={{
                 background:'linear-gradient(135deg,#FF6B35,#FF8C00)',
                 borderRadius:12, padding:'18px 20px',
-                boxShadow:'0 2px 8px rgba(255,100,0,0.08)',
-                transition:'transform 0.15s,box-shadow 0.15s',
-              }}
-                onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 6px 16px rgba(255,100,0,0.15)'}}
-                onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 2px 8px rgba(255,100,0,0.08)'}}>
-                <p style={{margin:'0 0 6px',fontSize:12,fontWeight:500,color:'rgba(255,255,255,0.8)'}}>Total GMV Keseluruhan</p>
-                <p style={{margin:'0 0 10px',fontSize:24,fontWeight:700,color:'#fff',lineHeight:1.2}}>{fmtRp(totalGmv)}</p>
-                <p style={{margin:'0 0 10px',fontSize:11,color:'rgba(255,255,255,0.75)'}}>dari penjualan_harian (kolom gmv)</p>
-                <GrowthBadge value={growthGmv} />
+                boxShadow:'0 2px 8px rgba(255,100,0,0.2)',
+                gridColumn: 'span 1',
+              }}>
+                <p style={{ margin:'0 0 4px', fontSize:12, fontWeight:500,
+                  color:'rgba(255,255,255,0.8)' }}>GMV</p>
+                <p style={{ margin:'0 0 8px', fontSize:24, fontWeight:700,
+                  color:'#fff', lineHeight:1.2 }}>{fmtRp(totalGmv)}</p>
+                <GrowthBadge value={growthGmv} light />
+                <p style={{ margin:'4px 0 0', fontSize:10, color:'rgba(255,255,255,0.6)' }}>
+                  dari penjualan_harian · kolom gmv
+                </p>
               </div>
 
-              <PerfCard label="GMV Ads"          value={fmtRp(totalOmzetAds)}             growth={growthOmzetAds}   sub="Shopee+TikTok+Meta (kolom omzet)"/>
-              <PerfCard label="GMV Affiliate"    value={fmtRp(gmvAff)}                    growth={growthGmvAff}     sub="dari penjualan_harian (kolom gmv_affiliate)"/>
-              <PerfCard label="GMV Livestream"   value={fmtRp(gmvLive)}                   growth={growthGmvLive}    sub={`${totalSesiLive} sesi`}/>
-              <PerfCard label="Visitor"          value={fmt(totalVisitor)}                 growth={growthVisitor}    sub="dari penjualan_harian (kolom visitor)"/>
-              <PerfCard label="CVR"              value={fmtPct(cvr)}                      growth={growthCvr}        sub={`${fmt(totalPesanan)} pesanan / ${fmt(totalVisitor)} visitor`}/>
-              <PerfCard label="AOV Order"        value={aovOrder > 0 ? fmtRp(aovOrder) : '—'}  growth={growthAov}        sub="avg nilai per pesanan"/>
-              <PerfCard label="Cancel Rate"      value={fmtPct(cancelRate)}                 growth={growthCancelRate} sub={`${fmt(totalBatal)} batal / ${fmt(totalPesanan)} pesanan`}    warn={cancelRate > 5}/>
-              <PerfCard label="Fail to Pick Up"  value={fmtPct(failPickupRate)}             growth={growthFailRate}   sub={`${fmt(totalGagalPickup)} gagal pickup`}                   warn={failPickupRate > 3}/>
+              {/* 2. Omzet Ads */}
+              <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+                borderRadius:12, padding:'18px 20px',
+                boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+                <p style={{ margin:'0 0 4px', fontSize:12, fontWeight:500, color:'#999' }}>
+                  Omzet Ads</p>
+                <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
+                  color:'#1A1A1A' }}>{fmtRp(omzetAds)}</p>
+                <GrowthBadge value={growthOmzetAds} />
+                <p style={{ margin:'4px 0 0', fontSize:10, color:'#bbb' }}>
+                  dari penjualan_harian · kolom omzet_ads
+                </p>
+              </div>
+
+              {/* 3. GMV Affiliate */}
+              <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+                borderRadius:12, padding:'18px 20px',
+                boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+                <p style={{ margin:'0 0 4px', fontSize:12, fontWeight:500, color:'#999' }}>
+                  GMV Affiliate</p>
+                <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
+                  color:'#1A1A1A' }}>{fmtRp(gmvAffiliate)}</p>
+                <GrowthBadge value={growthGmvAffiliate} />
+                <p style={{ margin:'4px 0 0', fontSize:10, color:'#bbb' }}>
+                  dari penjualan_harian · kolom gmv_affiliate
+                </p>
+              </div>
+
+              {/* 4. GMV Livestream */}
+              <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+                borderRadius:12, padding:'18px 20px',
+                boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+                <p style={{ margin:'0 0 4px', fontSize:12, fontWeight:500, color:'#999' }}>
+                  GMV Livestream</p>
+                <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
+                  color:'#1A1A1A' }}>{fmtRp(gmvLivestream)}</p>
+                <GrowthBadge value={growthGmvLive} />
+                <p style={{ margin:'4px 0 0', fontSize:10, color:'#bbb' }}>
+                  dari tabel livestream · kolom gmv
+                </p>
+              </div>
+
+              {/* 5. Visitor */}
+              <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+                borderRadius:12, padding:'18px 20px',
+                boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+                <p style={{ margin:'0 0 4px', fontSize:12, fontWeight:500, color:'#999' }}>
+                  Visitor</p>
+                <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
+                  color:'#1A1A1A' }}>{fmt(totalVisitor)}</p>
+                <GrowthBadge value={growthVisitor} />
+                <p style={{ margin:'4px 0 0', fontSize:10, color:'#bbb' }}>
+                  dari penjualan_harian · kolom visitor
+                </p>
+              </div>
+
+              {/* 6. Visitor CVR */}
+              <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+                borderRadius:12, padding:'18px 20px',
+                boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+                <p style={{ margin:'0 0 4px', fontSize:12, fontWeight:500, color:'#999' }}>
+                  Visitor CVR</p>
+                <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
+                  color:'#1A1A1A' }}>{fmtPct(visitorCvr.toFixed(2))}</p>
+                <GrowthBadge value={growthCvr} />
+                <p style={{ margin:'4px 0 0', fontSize:10, color:'#bbb' }}>
+                  pesanan_masuk ÷ visitor × 100
+                </p>
+              </div>
+
+              {/* 7. AOV Order */}
+              <div style={{ background:'#fff', border:'1px solid #FFE0CC',
+                borderRadius:12, padding:'18px 20px',
+                boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+                <p style={{ margin:'0 0 4px', fontSize:12, fontWeight:500, color:'#999' }}>
+                  AOV Order</p>
+                <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
+                  color:'#1A1A1A' }}>{fmtRp(aovOrder.toFixed(0))}</p>
+                <GrowthBadge value={growthAov} />
+                <p style={{ margin:'4px 0 0', fontSize:10, color:'#bbb' }}>
+                  gmv ÷ pesanan_masuk
+                </p>
+              </div>
+
+              {/* 8. Cancel Rate */}
+              <div style={{ background:'#fff',
+                border: cancelRate > 5 ? '1px solid #FECACA' : '1px solid #FFE0CC',
+                borderRadius:12, padding:'18px 20px',
+                boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+                <p style={{ margin:'0 0 4px', fontSize:12, fontWeight:500, color:'#999' }}>
+                  Cancel Rate</p>
+                <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
+                  color: cancelRate > 5 ? '#DC2626' : '#1A1A1A' }}>
+                  {fmtPct(cancelRate.toFixed(2))}</p>
+                <p style={{ margin:'4px 0 0', fontSize:11, color:'#999' }}>
+                  {fmt(totalPesananBatal)} batal ÷ {fmt(totalPesananMasuk)} pesanan
+                </p>
+                <p style={{ margin:'2px 0 0', fontSize:10, color:'#bbb' }}>
+                  dari penjualan_harian
+                </p>
+              </div>
+
+              {/* 9. Fail to Pick Up Rate */}
+              <div style={{ background:'#fff',
+                border: failPickupRate > 2 ? '1px solid #FECACA' : '1px solid #FFE0CC',
+                borderRadius:12, padding:'18px 20px',
+                boxShadow:'0 2px 8px rgba(255,100,0,0.06)' }}>
+                <p style={{ margin:'0 0 4px', fontSize:12, fontWeight:500, color:'#999' }}>
+                  Fail to Pick Up Rate</p>
+                <p style={{ margin:'0 0 8px', fontSize:22, fontWeight:700,
+                  color: failPickupRate > 2 ? '#DC2626' : '#1A1A1A' }}>
+                  {fmtPct(failPickupRate.toFixed(2))}</p>
+                <p style={{ margin:'4px 0 0', fontSize:11, color:'#999' }}>
+                  {fmt(totalGagalPickup)} gagal ÷ {fmt(totalPesananMasuk)} pesanan
+                </p>
+                <p style={{ margin:'2px 0 0', fontSize:10, color:'#bbb' }}>
+                  dari penjualan_harian
+                </p>
+              </div>
+
             </div>
           </div>
 
