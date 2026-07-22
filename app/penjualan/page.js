@@ -210,18 +210,18 @@ export default function DashboardPage() {
 
   // ─── Kalkulasi metrik ─────────────────────────────────────
   // Dari penjualan_harian
-  const totalGmv       = sum(filtered, 'gmv')
-  const prevGmv        = sum(filteredPrev, 'gmv')
+  const totalGmv       = sum(filtered, 'omzet')
+  const prevGmv        = sum(filteredPrev, 'omzet')
   const omzetAds       = sum(filtered, 'omzet_ads')
   const prevOmzetAds   = sum(filteredPrev, 'omzet_ads')
-  const gmvAffiliate   = sum(filtered, 'gmv_affiliate')
-  const prevGmvAff     = sum(filteredPrev, 'gmv_affiliate')
-  const totalVisitor   = sum(filtered, 'visitor')
-  const prevVisitor    = sum(filteredPrev, 'visitor')
+  const gmvAffiliate   = sum(filtered, 'omzet_affiliate')
+  const prevGmvAff     = sum(filteredPrev, 'omzet_affiliate')
+  const totalVisitor   = sum(filtered, 'pengunjung_toko')
+  const prevVisitor    = sum(filteredPrev, 'pengunjung_toko')
   const pesananMasuk   = sum(filtered, 'pesanan_masuk')
   const prevPesanan    = sum(filteredPrev, 'pesanan_masuk')
   const pesananBatal   = sum(filtered, 'pesanan_batal')
-  const gagalPickup    = sum(filtered, 'gagal_pickup')
+  const gagalPickup    = sum(filtered, 'jumlah_gagal_pickup')
 
   // Dari livestream
   const gmvLive        = sum(liveFiltered, 'gmv')
@@ -229,8 +229,8 @@ export default function DashboardPage() {
 
   // Kalkulasi turunan
   const visitorCvr     = totalVisitor > 0 ? pesananMasuk/totalVisitor*100 : 0
-  const prevCvr        = sum(filteredPrev,'visitor') > 0
-    ? prevPesanan/sum(filteredPrev,'visitor')*100 : 0
+  const prevCvr        = sum(filteredPrev,'pengunjung_toko') > 0
+    ? prevPesanan/sum(filteredPrev,'pengunjung_toko')*100 : 0
   const aovOrder       = pesananMasuk > 0 ? totalGmv/pesananMasuk : 0
   const prevAov        = prevPesanan > 0 ? prevGmv/prevPesanan : 0
   const cancelRate     = pesananMasuk > 0 ? pesananBatal/pesananMasuk*100 : 0
@@ -250,8 +250,8 @@ export default function DashboardPage() {
     const grouped = {}
     filtered.forEach(r => {
       const tgl = r.tanggal
-      if (!grouped[tgl]) grouped[tgl] = { label: tgl.slice(5), gmv: 0 }
-      grouped[tgl].gmv += Number(r.gmv) || 0
+      if (!grouped[tgl]) grouped[tgl] = { label: tgl.slice(5), omzet: 0 }
+      grouped[tgl].omzet += Number(r.omzet) || 0
     })
     return Object.values(grouped).sort((a,b) => a.label.localeCompare(b.label))
   })()
@@ -437,7 +437,7 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
 
             <MetricCard label="GMV"
               value={fmtRp(totalGmv)} growth={gGmv}
-              sub="penjualan_harian · kolom gmv"
+              sub="penjualan_harian · kolom omzet"
               highlight />
 
             <MetricCard label="Omzet Ads"
@@ -446,7 +446,7 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
 
             <MetricCard label="GMV Affiliate"
               value={fmtRp(gmvAffiliate)} growth={gGmvAff}
-              sub="penjualan_harian · kolom gmv_affiliate" />
+              sub="penjualan_harian · kolom omzet_affiliate" />
 
             <MetricCard label="GMV Livestream"
               value={fmtRp(gmvLive)} growth={gGmvLive}
@@ -454,7 +454,7 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
 
             <MetricCard label="Visitor"
               value={fmt(totalVisitor)} growth={gVisitor}
-              sub="penjualan_harian · kolom visitor" />
+              sub="penjualan_harian · kolom pengunjung_toko" />
 
             <MetricCard label="Visitor CVR"
               value={fmtPct(visitorCvr.toFixed(2))} growth={gCvr}
@@ -572,7 +572,7 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
                     labelFormatter={l => 'Tanggal: '+l}
                     contentStyle={{ fontSize:12, borderRadius:8,
                       border:'1px solid #FFE0CC' }} />
-                  <Line type="monotone" dataKey="gmv"
+                  <Line type="monotone" dataKey="omzet"
                     stroke="#FF6B35" strokeWidth={2.5}
                     dot={{ r:3, fill:'#FF6B35', strokeWidth:0 }}
                     activeDot={{ r:5 }} />
@@ -636,9 +636,9 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
                         </td>
                         <td style={{ padding:'7px 10px', textAlign:'right',
                           fontWeight:600, color:'#1A1A1A', whiteSpace:'nowrap' }}>
-                          {fmtRp(row.gmv)}</td>
+                          {fmtRp(row.omzet)}</td>
                         <td style={{ padding:'7px 10px', textAlign:'right',
-                          color:'#666' }}>{fmt(row.visitor)}</td>
+                          color:'#666' }}>{fmt(row.pengunjung_toko)}</td>
                         <td style={{ padding:'7px 10px', textAlign:'right',
                           color:'#666' }}>{fmt(row.pesanan_masuk)}</td>
                         <td style={{ padding:'7px 10px', textAlign:'right',
@@ -652,7 +652,7 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
                           {fmtPct(Number(row.visitor_cvr||0).toFixed(2))}</td>
                         <td style={{ padding:'7px 10px', textAlign:'right',
                           color:'#166534', whiteSpace:'nowrap' }}>
-                          {fmtRp(row.gmv_affiliate)}</td>
+                          {fmtRp(row.omzet_affiliate)}</td>
                         <td style={{ padding:'7px 10px', textAlign:'right',
                           color:'#666', whiteSpace:'nowrap' }}>
                           {fmtRp(row.omzet_ads)}</td>
