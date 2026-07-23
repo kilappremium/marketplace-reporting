@@ -8,7 +8,7 @@ import {
 
 // ─── Constants ────────────────────────────────────────────
 const PLATFORMS = ['Shopee','Tiktok']
-const BRANDS = ['Kilap Premium', 'Purfress']
+const BRANDS = ['Kilap Premium', 'Purfress', 'Pusat Pengkilap', 'KP Affiliate Internal']
 
 const JADWAL_SESI = [
   'SHOPEE | Shift 1 (06.00 - 12.00)',
