@@ -148,27 +148,38 @@ export default function DashboardPage() {
   }
 
   function applyFiltersPrev(arr) {
+    // Tentukan periode aktif
+    let activeStart, activeEnd
+
     if (filterStart && filterEnd) {
-      const start = new Date(filterStart)
-      const end = new Date(filterEnd)
-      const durasi = Math.round((end-start)/(1000*60*60*24))+1
-      const prevEnd = new Date(start)
-      prevEnd.setDate(prevEnd.getDate()-1)
-      const prevStart = new Date(prevEnd)
-      prevStart.setDate(prevStart.getDate()-durasi+1)
-      const ps = prevStart.toISOString().split('T')[0]
-      const pe = prevEnd.toISOString().split('T')[0]
-      return arr.filter(r => {
-        if (!r.tanggal) return false
-        if (r.tanggal < ps || r.tanggal > pe) return false
-        if (filterBrand && r.brand !== filterBrand) return false
-        if (filterChannel && r.channel !== filterChannel) return false
-        return true
-      })
+      activeStart = new Date(filterStart)
+      activeEnd = new Date(filterEnd)
+    } else {
+      // Default: dari tanggal 1 bulan ini sampai hari ini
+      const today = new Date()
+      activeStart = new Date(today.getFullYear(), today.getMonth(), 1)
+      activeEnd = new Date(today)
     }
+
+    // Hitung durasi periode aktif (dalam hari)
+    const durasi = Math.round(
+      (activeEnd - activeStart) / (1000*60*60*24)
+    ) + 1
+
+    // Periode pembanding = durasi hari yang sama,
+    // mundur 1 hari dari awal periode aktif
+    const prevEnd = new Date(activeStart)
+    prevEnd.setDate(prevEnd.getDate() - 1)
+
+    const prevStart = new Date(prevEnd)
+    prevStart.setDate(prevStart.getDate() - durasi + 1)
+
+    const prevStartStr = prevStart.toISOString().split('T')[0]
+    const prevEndStr = prevEnd.toISOString().split('T')[0]
+
     return arr.filter(r => {
       if (!r.tanggal) return false
-      if (!r.tanggal.startsWith(bulanLalu)) return false
+      if (r.tanggal < prevStartStr || r.tanggal > prevEndStr) return false
       if (filterBrand && r.brand !== filterBrand) return false
       if (filterChannel && r.channel !== filterChannel) return false
       return true
@@ -269,17 +280,28 @@ export default function DashboardPage() {
     : `Bulan ini (${bulanIni})`
 
   const compareLabel = (() => {
+    let activeStart, activeEnd
+
     if (filterStart && filterEnd) {
-      const start = new Date(filterStart)
-      const end = new Date(filterEnd)
-      const durasi = Math.round((end-start)/(1000*60*60*24))+1
-      const prevEnd = new Date(start)
-      prevEnd.setDate(prevEnd.getDate()-1)
-      const prevStart = new Date(prevEnd)
-      prevStart.setDate(prevStart.getDate()-durasi+1)
-      return `${prevStart.toISOString().split('T')[0]} s/d ${prevEnd.toISOString().split('T')[0]}`
+      activeStart = new Date(filterStart)
+      activeEnd = new Date(filterEnd)
+    } else {
+      const today = new Date()
+      activeStart = new Date(today.getFullYear(), today.getMonth(), 1)
+      activeEnd = new Date(today)
     }
-    return `Bulan lalu (${bulanLalu})`
+
+    const durasi = Math.round(
+      (activeEnd - activeStart) / (1000*60*60*24)
+    ) + 1
+
+    const prevEnd = new Date(activeStart)
+    prevEnd.setDate(prevEnd.getDate() - 1)
+
+    const prevStart = new Date(prevEnd)
+    prevStart.setDate(prevStart.getDate() - durasi + 1)
+
+    return `${prevStart.toISOString().split('T')[0]} s/d ${prevEnd.toISOString().split('T')[0]} (${durasi} hari)`
   })()
 
   // ─── AI Analysis ─────────────────────────────────────────
