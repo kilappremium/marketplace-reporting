@@ -84,6 +84,8 @@ export default function DashboardPage() {
   const [aiLoading, setAiLoading]     = useState(false)
   const [aiText, setAiText]           = useState('')
   const [aiError, setAiError]         = useState('')
+  const [syncLoading, setSyncLoading] = useState(false)
+  const [syncMsg, setSyncMsg]         = useState('')
 
   // ─── Fetch semua data dari Supabase ──────────────────────
   useEffect(() => {
@@ -112,6 +114,29 @@ export default function DashboardPage() {
     setAllData(penjualanRes.data || [])
     setAllLive(liveRes.data || [])
     setLoading(false)
+  }
+
+  async function handleSyncShopee() {
+    setSyncLoading(true)
+    setSyncMsg('')
+    try {
+      const res = await fetch('/api/marketplace/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'shopee',
+          dateStart: filterStart || undefined,
+          dateEnd: filterEnd || undefined,
+        }),
+      })
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setSyncMsg(`✅ Sync Shopee berhasil · ${json.records_saved || 0} hari tersimpan · ${json.orders_fetched || 0} pesanan`)
+      await fetchAll()
+    } catch (err) {
+      setSyncMsg(`❌ Gagal sync: ${err.message}`)
+    }
+    setSyncLoading(false)
   }
 
   // ─── Daftar pilihan filter ────────────────────────────────
@@ -361,7 +386,27 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
           </p>
           <p style={{ margin:0, fontSize:12, color:'#999' }}>📅 {tglLabel}</p>
         </div>
+        <button onClick={handleSyncShopee} disabled={syncLoading}
+          style={{
+            padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:600,
+            cursor: syncLoading ? 'default' : 'pointer', border:'1.5px solid #EE4D2D',
+            background: syncLoading ? '#FFD4B8' : '#FFF0E6', color:'#993C1D',
+            display:'flex', alignItems:'center', gap:6,
+          }}>
+          {syncLoading ? 'Mensinkronkan Shopee...' : '🔄 Sync Shopee Sales'}
+        </button>
       </div>
+
+      {syncMsg && (
+        <div style={{
+          marginBottom:16, padding:'10px 14px', borderRadius:8, fontSize:13,
+          background: syncMsg.startsWith('✅') ? '#DCFCE7' : '#FEE2E2',
+          color: syncMsg.startsWith('✅') ? '#166534' : '#991B1B',
+          border: syncMsg.startsWith('✅') ? '1px solid #BBF7D0' : '1px solid #FECACA',
+        }}>
+          {syncMsg}
+        </div>
+      )}
 
       {/* ── FILTER BAR ── */}
       <div style={{ background:'#fff', border:'1px solid #FFE0CC',
@@ -441,6 +486,26 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
           }} />
           <p style={{ color:'#999' }}>Memuat data...</p>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      ) : allData.length === 0 ? (
+        <div style={{
+          textAlign:'center', padding:'64px 20px',
+          background:'#fff', border:'1px dashed #FFD4B8', borderRadius:12,
+        }}>
+          <p style={{ margin:'0 0 8px', fontSize:16, fontWeight:600, color:'#1A1A1A' }}>
+            No sales data yet.
+          </p>
+          <p style={{ margin:'0 0 16px', fontSize:13, color:'#999' }}>
+            Klik &quot;Sync Shopee Sales&quot; untuk menarik data penjualan dari Shopee API.
+          </p>
+          <button onClick={handleSyncShopee} disabled={syncLoading}
+            style={{
+              padding:'10px 20px', borderRadius:8, fontSize:13, fontWeight:600,
+              cursor: syncLoading ? 'default' : 'pointer', border:'none',
+              background:'linear-gradient(135deg,#FF6B35,#FF8C00)', color:'#fff',
+            }}>
+            {syncLoading ? 'Mensinkronkan...' : '🔄 Sync Shopee Sales'}
+          </button>
         </div>
       ) : (
         <>
@@ -613,7 +678,7 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
             </p>
             {filtered.length === 0 ? (
               <p style={{ color:'#999', fontSize:13 }}>
-                Tidak ada data untuk filter yang dipilih.
+                No sales data yet.
               </p>
             ) : (
               <div style={{ overflowX:'auto' }}>
