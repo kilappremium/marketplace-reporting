@@ -1,11 +1,13 @@
 import { getProvider } from '../../../../lib/marketplace/service.js'
 
-/**
- * GET /api/marketplace/callback?provider=shopee&code=...&shop_id=...
- * Handles the OAuth redirect callback for the given provider.
- */
 export async function GET(request) {
+
+  console.log("=== CALLBACK MASUK ===")
+
   const { searchParams } = new URL(request.url)
+
+  console.log(searchParams.toString())
+
   const providerName = searchParams.get('provider')
 
   if (!providerName) {
