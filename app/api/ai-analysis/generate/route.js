@@ -1,3 +1,4 @@
+import { buildSalesContext } from '../../../../lib/ai/dataBuilder.js'
 import { generateBrandInsight } from '../../../../lib/ai/insight.js'
 
 /**
@@ -20,7 +21,9 @@ export async function POST(request) {
   }
 
   try {
-    const result = await generateBrandInsight(brand)
+    const context = await buildSalesContext(brand)
+    const result = await generateBrandInsight(context)
+
     return Response.json({
       success: true,
       brand: result.brand,
