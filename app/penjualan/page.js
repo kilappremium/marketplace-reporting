@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { getTodaySales, getSalesTrend } from '../../lib/dashboard/sales'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -72,7 +73,10 @@ export default function DashboardPage() {
   // ─── State ───────────────────────────────────────────────
   const [allData, setAllData]         = useState([])
   const [allLive, setAllLive]         = useState([])
+  const [todaySales, setTodaySales]   = useState(null)
+  const [trend, setTrend]             = useState([])
   const [loading, setLoading]         = useState(true)
+  const [error, setError]             = useState('')
 
   // Filter states
   const [filterStart, setFilterStart] = useState('')
@@ -94,26 +98,44 @@ export default function DashboardPage() {
 
   async function fetchAll() {
     setLoading(true)
+    setError('')
     const today = new Date().toISOString().split('T')[0]
 
-    const [penjualanRes, liveRes] = await Promise.all([
-      supabase
-        .from('penjualan_harian')
-        .select('*')
-        .gte('tanggal', '2026-01-01')
-        .lte('tanggal', today)
-        .order('tanggal', { ascending: false }),
-      supabase
-        .from('livestream')
-        .select('tanggal,gmv,pesanan,durasi_jam,nama_host,platform,jadwal_sesi')
-        .gte('tanggal', '2026-01-01')
-        .lte('tanggal', today)
-        .order('tanggal', { ascending: false }),
-    ])
+    try {
+      const [sales, salesTrend, penjualanRes, liveRes] = await Promise.all([
+        getTodaySales(),
+        getSalesTrend(30),
+        supabase
+          .from('penjualan_harian')
+          .select('*')
+          .gte('tanggal', '2026-01-01')
+          .lte('tanggal', today)
+          .order('tanggal', { ascending: false }),
+        supabase
+          .from('livestream')
+          .select('tanggal,gmv,pesanan,durasi_jam,nama_host,platform,jadwal_sesi')
+          .gte('tanggal', '2026-01-01')
+          .lte('tanggal', today)
+          .order('tanggal', { ascending: false }),
+      ])
 
-    setAllData(penjualanRes.data || [])
-    setAllLive(liveRes.data || [])
-    setLoading(false)
+      if (penjualanRes.error) throw new Error(penjualanRes.error.message)
+      if (liveRes.error) throw new Error(liveRes.error.message)
+
+      setTodaySales(sales)
+      setTrend(salesTrend)
+      setAllData(penjualanRes.data || [])
+      setAllLive(liveRes.data || [])
+      console.log('Dashboard Loaded')
+    } catch (err) {
+      setError(err.message || 'Gagal memuat dashboard.')
+      setTodaySales(null)
+      setTrend([])
+      setAllData([])
+      setAllLive([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleSyncShopee() {
@@ -131,7 +153,7 @@ export default function DashboardPage() {
       })
       const json = await res.json()
       if (json.error) throw new Error(json.error)
-      setSyncMsg(`✅ Sync Shopee berhasil · ${json.records_saved || 0} hari tersimpan · ${json.orders_fetched || 0} pesanan`)
+      setSyncMsg(`✅ Sync Shopee berhasil · ${json.synced_days || 0} hari · ${json.total_orders || 0} pesanan · ${json.inserted_rows || 0} insert / ${json.updated_rows || 0} update`)
       await fetchAll()
     } catch (err) {
       setSyncMsg(`❌ Gagal sync: ${err.message}`)
@@ -245,8 +267,8 @@ export default function DashboardPage() {
   const livePrev     = applyLiveFiltersPrev(allLive)
 
   // ─── Kalkulasi metrik ─────────────────────────────────────
-  // Dari penjualan_harian
-  const totalGmv       = sum(filtered, 'omzet')
+  // KPI sales dari getTodaySales() (Shopee · data terbaru)
+  const totalGmv       = Number(todaySales?.omzet) || 0
   const prevGmv        = sum(filteredPrev, 'omzet')
   const omzetAds       = sum(filtered, 'omzet_ads')
   const prevOmzetAds   = sum(filteredPrev, 'omzet_ads')
@@ -254,22 +276,22 @@ export default function DashboardPage() {
   const prevGmvAff     = sum(filteredPrev, 'omzet_affiliate')
   const totalVisitor   = sum(filtered, 'pengunjung_toko')
   const prevVisitor    = sum(filteredPrev, 'pengunjung_toko')
-  const pesananMasuk   = sum(filtered, 'pesanan_masuk')
+  const pesananMasuk   = Number(todaySales?.pesanan_masuk) || 0
   const prevPesanan    = sum(filteredPrev, 'pesanan_masuk')
-  const pesananBatal   = sum(filtered, 'pesanan_batal')
+  const pesananBatal   = Number(todaySales?.pesanan_batal) || 0
   const gagalPickup    = sum(filtered, 'jumlah_gagal_pickup')
 
   // Dari livestream
   const gmvLive        = sum(liveFiltered, 'gmv')
   const prevGmvLive    = sum(livePrev, 'gmv')
 
-  // Kalkulasi turunan
+  // Kalkulasi turunan — AOV & Cancel Rate dari getTodaySales()
   const visitorCvr     = totalVisitor > 0 ? pesananMasuk/totalVisitor*100 : 0
   const prevCvr        = sum(filteredPrev,'pengunjung_toko') > 0
     ? prevPesanan/sum(filteredPrev,'pengunjung_toko')*100 : 0
-  const aovOrder       = pesananMasuk > 0 ? totalGmv/pesananMasuk : 0
+  const aovOrder       = Number(todaySales?.aov_order) || 0
   const prevAov        = prevPesanan > 0 ? prevGmv/prevPesanan : 0
-  const cancelRate     = pesananMasuk > 0 ? pesananBatal/pesananMasuk*100 : 0
+  const cancelRate     = Number(todaySales?.cancel_rate) || 0
   const failPickupRate = pesananMasuk > 0 ? gagalPickup/pesananMasuk*100 : 0
 
   // Growth
@@ -281,16 +303,16 @@ export default function DashboardPage() {
   const gCvr     = growthPct(visitorCvr, prevCvr)
   const gAov     = growthPct(aovOrder, prevAov)
 
-  // ─── Grafik harian (dari penjualan_harian) ───────────────
-  const grafikData = (() => {
-    const grouped = {}
-    filtered.forEach(r => {
-      const tgl = r.tanggal
-      if (!grouped[tgl]) grouped[tgl] = { label: tgl.slice(5), omzet: 0 }
-      grouped[tgl].omzet += Number(r.omzet) || 0
-    })
-    return Object.values(grouped).sort((a,b) => a.label.localeCompare(b.label))
-  })()
+  // ─── Grafik harian (dari getSalesTrend) ──────────────────
+  const grafikData = trend.map(r => ({
+    label: String(r.tanggal || '').slice(5),
+    omzet: Number(r.omzet) || 0,
+    pesanan_masuk: Number(r.pesanan_masuk) || 0,
+  }))
+
+  const hasSalesData = Boolean(
+    todaySales && !todaySales._empty
+  ) || trend.length > 0
 
   const fmtAxis = v => {
     if (v >= 1000000000) return (v/1000000000).toFixed(1)+'M'
@@ -487,7 +509,27 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
           <p style={{ color:'#999' }}>Memuat data...</p>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
-      ) : allData.length === 0 ? (
+      ) : error ? (
+        <div style={{
+          textAlign:'center', padding:'48px 20px',
+          background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:12,
+        }}>
+          <p style={{ margin:'0 0 8px', fontSize:16, fontWeight:600, color:'#991B1B' }}>
+            Gagal memuat dashboard
+          </p>
+          <p style={{ margin:'0 0 16px', fontSize:13, color:'#B91C1C' }}>
+            {error}
+          </p>
+          <button onClick={fetchAll}
+            style={{
+              padding:'10px 20px', borderRadius:8, fontSize:13, fontWeight:600,
+              cursor:'pointer', border:'none',
+              background:'linear-gradient(135deg,#FF6B35,#FF8C00)', color:'#fff',
+            }}>
+            Coba lagi
+          </button>
+        </div>
+      ) : !hasSalesData ? (
         <div style={{
           textAlign:'center', padding:'64px 20px',
           background:'#fff', border:'1px dashed #FFD4B8', borderRadius:12,
@@ -523,8 +565,8 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
             gap:14, marginBottom:24 }}>
 
             <MetricCard label="GMV"
-              value={fmtRp(totalGmv)} growth={gGmv}
-              sub="penjualan_harian · kolom omzet"
+              value={fmtRp(totalGmv)}
+              sub="Shopee · omzet (data terbaru)"
               highlight />
 
             <MetricCard label="Omzet Ads"
@@ -548,8 +590,8 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
               sub={`${fmt(pesananMasuk)} pesanan ÷ ${fmt(totalVisitor)} visitor`} />
 
             <MetricCard label="AOV Order"
-              value={fmtRp(aovOrder.toFixed(0))} growth={gAov}
-              sub={`GMV ÷ ${fmt(pesananMasuk)} pesanan masuk`} />
+              value={fmtRp(aovOrder.toFixed(0))}
+              sub={`Shopee · aov_order · ${fmt(pesananMasuk)} pesanan`} />
 
             <MetricCard label="Cancel Rate"
               value={fmtPct(cancelRate.toFixed(2))}
@@ -638,10 +680,7 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
                 Tren GMV Harian
               </p>
               <p style={{ margin:'0 0 16px', fontSize:12, color:'#999' }}>
-                {periodeLabel}
-                {filterBrand ? ` · ${filterBrand}` : ''}
-                {filterChannel ? ` · ${filterChannel}` : ''}
-                {' · dari penjualan_harian'}
+                Shopee · 30 hari terakhir · penjualan_harian
               </p>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={grafikData}
