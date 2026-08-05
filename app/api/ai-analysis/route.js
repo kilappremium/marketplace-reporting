@@ -1,4 +1,5 @@
-import { generateAiText, GROQ_MODELS } from '../../../../lib/ai/client.js'
+import { generateAiText, GROQ_MODELS } from 
+'../../../lib/ai/client.js'
 
 export async function POST(request) {
   try {

@@ -33,6 +33,20 @@ export async function middleware(request) {
 
   const isLoginPage = request.nextUrl.pathname === "/login";
 
+const pathname = request.nextUrl.pathname;
+
+const publicApiRoutes = [
+  "/api/marketplace/connect",
+  "/api/marketplace/callback",
+  "/api/marketplace/refresh",
+  "/api/marketplace/sync",
+  "/api/ai-analysis/generate",
+];
+
+if (publicApiRoutes.some(route => pathname.startsWith(route))) {
+  return NextResponse.next();
+}
+
   // Halaman /login tidak perlu dicek — user belum login boleh akses
   if (!user && !isLoginPage) {
     const loginUrl = request.nextUrl.clone();
