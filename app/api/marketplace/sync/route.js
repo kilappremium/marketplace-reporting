@@ -42,14 +42,16 @@ export async function POST(request) {
 
 /**
  * GET /api/marketplace/sync
- * Defaults: provider=shopee; connectionId/dateStart/dateEnd undefined.
+ * Query: provider?=shopee, connectionId?, dateStart?, dateEnd?
+ * Defaults: provider=shopee.
  * Returns the same JSON as POST.
  */
-export async function GET() {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url)
   return runSync({
-    provider: 'shopee',
-    connectionId: undefined,
-    dateStart: undefined,
-    dateEnd: undefined,
+    provider: searchParams.get('provider') || 'shopee',
+    connectionId: searchParams.get('connectionId') || undefined,
+    dateStart: searchParams.get('dateStart') || undefined,
+    dateEnd: searchParams.get('dateEnd') || undefined,
   })
 }

@@ -83,6 +83,7 @@ export default function DashboardPage() {
   const [filterEnd, setFilterEnd]     = useState('')
   const [filterBrand, setFilterBrand] = useState('')
   const [filterChannel, setFilterChannel] = useState('')
+  const [filterSource, setFilterSource] = useState('')
 
   // AI states
   const [aiLoading, setAiLoading]     = useState(false)
@@ -102,29 +103,39 @@ export default function DashboardPage() {
     const today = new Date().toISOString().split('T')[0]
 
     try {
-      const [sales, salesTrend, penjualanRes, liveRes] = await Promise.all([
+      const [
+        sales,
+        salesTrend,
+        salesRes,
+        liveRes
+      ] = await Promise.all([
+
         getTodaySales(),
+
         getSalesTrend(30),
-        supabase
-          .from('penjualan_harian')
-          .select('*')
-          .gte('tanggal', '2026-01-01')
-          .lte('tanggal', today)
-          .order('tanggal', { ascending: false }),
+
+        fetch('/api/report/sales')
+          .then(res => res.json()),
+
         supabase
           .from('livestream')
-          .select('tanggal,gmv,pesanan,durasi_jam,nama_host,platform,jadwal_sesi')
-          .gte('tanggal', '2026-01-01')
-          .lte('tanggal', today)
-          .order('tanggal', { ascending: false }),
+          .select(
+            'tanggal,gmv,pesanan,durasi_jam,nama_host,platform,jadwal_sesi'
+          )
+          .gte('tanggal','2026-01-01')
+          .lte('tanggal',today)
+          .order('tanggal',{ascending:false})
+
       ])
 
-      if (penjualanRes.error) throw new Error(penjualanRes.error.message)
+      console.log('REPORT SALES API:', salesRes)
+
+      if (salesRes.error) throw new Error(salesRes.error)
       if (liveRes.error) throw new Error(liveRes.error.message)
 
       setTodaySales(sales)
       setTrend(salesTrend)
-      setAllData(penjualanRes.data || [])
+      setAllData(salesRes.detail || [])
       setAllLive(liveRes.data || [])
       console.log('Dashboard Loaded')
     } catch (err) {
@@ -153,7 +164,11 @@ export default function DashboardPage() {
       })
       const json = await res.json()
       if (json.error) throw new Error(json.error)
-      setSyncMsg(`✅ Sync Shopee berhasil · ${json.synced_days || 0} hari · ${json.total_orders || 0} pesanan · ${json.inserted_rows || 0} insert / ${json.updated_rows || 0} update`)
+      const periode = json.date_start && json.date_end
+        ? ` · ${json.date_start} s/d ${json.date_end}`
+        : ''
+      const brandLabel = json.brand ? ` · brand ${json.brand}` : ''
+      setSyncMsg(`✅ Sync Shopee berhasil${periode}${brandLabel} · ${json.synced_days || 0} hari · ${json.total_orders || 0} pesanan · ${json.inserted_rows || 0} insert / ${json.updated_rows || 0} update`)
       await fetchAll()
     } catch (err) {
       setSyncMsg(`❌ Gagal sync: ${err.message}`)
@@ -164,10 +179,20 @@ export default function DashboardPage() {
   // ─── Daftar pilihan filter ────────────────────────────────
   const brandOptions = [...new Set(allData.map(r => r.brand).filter(Boolean))].sort()
   const channelOptions = [...new Set(allData.map(r => r.channel).filter(Boolean))].sort()
+  const sourceOptions = [
+    ...new Set(
+      allData
+        .map(r => r.source)
+        .filter(Boolean)
+    )
+  ]
 
   // ─── Default periode: bulan ini ──────────────────────────
   const today = new Date()
-  const bulanIni = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`
+  const bulanIni =
+    allData.length > 0
+      ? String(allData[0].tanggal).slice(0,7)
+      : `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`
   const bulanLalu = (() => {
     const m = today.getMonth()
     const y = today.getFullYear()
@@ -184,12 +209,23 @@ export default function DashboardPage() {
       if (start && end) {
         if (r.tanggal < start || r.tanggal > end) return false
       } else {
-        if (!r.tanggal.startsWith(bulanIni)) return false
+        if (
+          !filterStart &&
+          !filterEnd &&
+          bulanIni &&
+          !r.tanggal.startsWith(bulanIni)
+        ) {
+          return false
+        }
       }
       // Filter brand
       if (filterBrand && r.brand !== filterBrand) return false
       // Filter channel
       if (filterChannel && r.channel !== filterChannel) return false
+      if (
+        filterSource &&
+        r.source !== filterSource
+      ) return false
       return true
     })
   }
@@ -229,6 +265,10 @@ export default function DashboardPage() {
       if (r.tanggal < prevStartStr || r.tanggal > prevEndStr) return false
       if (filterBrand && r.brand !== filterBrand) return false
       if (filterChannel && r.channel !== filterChannel) return false
+      if (
+        filterSource &&
+        r.source !== filterSource
+      ) return false
       return true
     })
   }
@@ -268,40 +308,90 @@ export default function DashboardPage() {
 
   // ─── Kalkulasi metrik ─────────────────────────────────────
   // KPI sales dari getTodaySales() (Shopee · data terbaru)
-  const totalGmv       = Number(todaySales?.omzet) || 0
-  const prevGmv        = sum(filteredPrev, 'omzet')
-  const omzetAds       = sum(filtered, 'omzet_ads')
-  const prevOmzetAds   = sum(filteredPrev, 'omzet_ads')
-  const gmvAffiliate   = sum(filtered, 'omzet_affiliate')
-  const prevGmvAff     = sum(filteredPrev, 'omzet_affiliate')
-  const totalVisitor   = sum(filtered, 'pengunjung_toko')
-  const prevVisitor    = sum(filteredPrev, 'pengunjung_toko')
-  const pesananMasuk   = Number(todaySales?.pesanan_masuk) || 0
-  const prevPesanan    = sum(filteredPrev, 'pesanan_masuk')
-  const pesananBatal   = Number(todaySales?.pesanan_batal) || 0
-  const gagalPickup    = sum(filtered, 'jumlah_gagal_pickup')
+  const totalGmv =
+    Number(todaySales?.omzet) || 0
+
+  const prevGmv =
+    sum(filteredPrev,'omzet')
+
+
+  const pesananMasuk =
+    Number(todaySales?.pesanan_masuk) || 0
+
+  const prevPesanan =
+    sum(filteredPrev,'pesanan_masuk')
+
+
+  const totalProduk =
+    sum(filtered,'jumlah_produk_terjual')
+
+  const prevProduk =
+    sum(filteredPrev,'jumlah_produk_terjual')
+
+
+  const customerBaru =
+    sum(filtered,'customer_baru')
+
+  const prevCustomerBaru =
+    sum(filteredPrev,'customer_baru')
+
+
+  const pesananBatal =
+    Number(todaySales?.pesanan_batal) || 0
+
+
+  const cancelRate =
+    Number(todaySales?.cancel_rate) || 0
+
+
+  const gagalPickup =
+    sum(filtered,'jumlah_gagal_pickup')
+
+
+  const failPickupRate =
+    sum(filtered,'fail_to_pickup_rate')
+
+
+  const aovOrder =
+    Number(todaySales?.aov_order) || 0
+
+
+  const prevAov =
+    prevPesanan > 0
+    ? prevGmv / prevPesanan
+    : 0
 
   // Dari livestream
   const gmvLive        = sum(liveFiltered, 'gmv')
   const prevGmvLive    = sum(livePrev, 'gmv')
 
-  // Kalkulasi turunan — AOV & Cancel Rate dari getTodaySales()
+  // Kalkulasi turunan
+  const totalVisitor   = sum(filtered, 'pengunjung_toko')
+  const prevVisitor    = sum(filteredPrev, 'pengunjung_toko')
   const visitorCvr     = totalVisitor > 0 ? pesananMasuk/totalVisitor*100 : 0
-  const prevCvr        = sum(filteredPrev,'pengunjung_toko') > 0
-    ? prevPesanan/sum(filteredPrev,'pengunjung_toko')*100 : 0
-  const aovOrder       = Number(todaySales?.aov_order) || 0
-  const prevAov        = prevPesanan > 0 ? prevGmv/prevPesanan : 0
-  const cancelRate     = Number(todaySales?.cancel_rate) || 0
-  const failPickupRate = pesananMasuk > 0 ? gagalPickup/pesananMasuk*100 : 0
+  const prevCvr        = prevVisitor > 0
+    ? prevPesanan/prevVisitor*100 : 0
+
+  const omzetAds       = sum(filtered, 'omzet_ads')
+  const prevOmzetAds   = sum(filteredPrev, 'omzet_ads')
+  const gmvAffiliate   = sum(filtered, 'omzet_affiliate')
+  const prevGmvAff     = sum(filteredPrev, 'omzet_affiliate')
 
   // Growth
-  const gGmv     = growthPct(totalGmv, prevGmv)
-  const gOmzetAds = growthPct(omzetAds, prevOmzetAds)
-  const gGmvAff  = growthPct(gmvAffiliate, prevGmvAff)
-  const gGmvLive = growthPct(gmvLive, prevGmvLive)
-  const gVisitor = growthPct(totalVisitor, prevVisitor)
-  const gCvr     = growthPct(visitorCvr, prevCvr)
-  const gAov     = growthPct(aovOrder, prevAov)
+  const gGmv =
+    growthPct(totalGmv, prevGmv)
+
+  const gPesanan =
+    growthPct(pesananMasuk, prevPesanan)
+
+  const gProduk =
+    growthPct(totalProduk, prevProduk)
+
+  const gCustomer =
+    growthPct(customerBaru, prevCustomerBaru)
+
+  const gAov =
+    growthPct(aovOrder, prevAov)
 
   // ─── Grafik harian (dari getSalesTrend) ──────────────────
   const grafikData = trend.map(r => ({
@@ -479,11 +569,35 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
           ))}
         </select>
 
+        <span style={{
+          fontSize:12,
+          color:'#FF8C00',
+          fontWeight:600
+        }}>
+          Source:
+        </span>
+
+        <select
+          value={filterSource}
+          onChange={e => setFilterSource(e.target.value)}
+          style={{ padding:'6px 10px', borderRadius:8,
+            border:'1px solid #FFD4B8', fontSize:12, color:'#1A1A1A',
+            background:'#fff', outline:'none' }}
+        >
+          <option value="">Semua Source</option>
+          {sourceOptions.map(s => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+
         {/* Reset */}
-        {(filterStart || filterEnd || filterBrand || filterChannel) && (
+        {(filterStart || filterEnd || filterBrand || filterChannel || filterSource) && (
           <button onClick={() => {
             setFilterStart(''); setFilterEnd('')
             setFilterBrand(''); setFilterChannel('')
+            setFilterSource('')
           }}
             style={{ padding:'6px 12px', borderRadius:8, fontSize:12,
               border:'1px solid #FFE0CC', background:'#FFF3ED',
@@ -552,11 +666,41 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
       ) : (
         <>
           {/* ── INFO JUMLAH DATA ── */}
-          <div style={{ display:'flex', gap:12, marginBottom:16,
-            fontSize:12, color:'#999', flexWrap:'wrap' }}>
-            <span>📊 {filtered.length} baris dari penjualan_harian</span>
-            {filterBrand && <span>· Brand: <b style={{color:'#FF6B35'}}>{filterBrand}</b></span>}
-            {filterChannel && <span>· Channel: <b style={{color:'#FF6B35'}}>{filterChannel}</b></span>}
+          <div style={{
+            display:'flex',
+            gap:12,
+            flexWrap:'wrap',
+            fontSize:12,
+            color:'#999',
+            marginBottom:16
+          }}>
+
+            <span>
+              📊 {filtered.length} data penjualan
+            </span>
+
+            <span>
+              🟢 API:
+              {' '}
+              {
+                filtered.filter(
+                  r=>r.source==='shopee_api'
+                ).length
+              }
+              data
+            </span>
+
+            <span>
+              📝 Manual:
+              {' '}
+              {
+                filtered.filter(
+                  r=>r.source!=='shopee_api'
+                ).length
+              }
+              data
+            </span>
+
           </div>
 
           {/* ── SUMMARY CARDS ── */}
@@ -564,44 +708,71 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
             gridTemplateColumns:'repeat(auto-fit, minmax(200px,1fr))',
             gap:14, marginBottom:24 }}>
 
-            <MetricCard label="GMV"
+            <MetricCard
+              label="GMV"
               value={fmtRp(totalGmv)}
-              sub="Shopee · omzet (data terbaru)"
-              highlight />
+              growth={gGmv}
+              sub="Shopee API · omzet"
+              highlight
+            />
 
-            <MetricCard label="Omzet Ads"
-              value={fmtRp(omzetAds)} growth={gOmzetAds}
-              sub="penjualan_harian · kolom omzet_ads" />
+            <MetricCard
+              label="Pesanan"
+              value={fmt(pesananMasuk)}
+              growth={gPesanan}
+              sub="Shopee API · pesanan masuk"
+            />
 
-            <MetricCard label="GMV Affiliate"
-              value={fmtRp(gmvAffiliate)} growth={gGmvAff}
-              sub="penjualan_harian · kolom omzet_affiliate" />
+            <MetricCard
+              label="Produk Terjual"
+              value={fmt(totalProduk)}
+              growth={gProduk}
+              sub="Jumlah produk terjual"
+            />
 
-            <MetricCard label="GMV Livestream"
-              value={fmtRp(gmvLive)} growth={gGmvLive}
-              sub={`tabel livestream · ${liveFiltered.length} sesi`} />
+            <MetricCard
+              label="AOV Order"
+              value={fmtRp(aovOrder)}
+              growth={gAov}
+              sub="Rata-rata nilai transaksi"
+            />
 
-            <MetricCard label="Visitor"
-              value={fmt(totalVisitor)} growth={gVisitor}
-              sub="penjualan_harian · kolom pengunjung_toko" />
-
-            <MetricCard label="Visitor CVR"
-              value={fmtPct(visitorCvr.toFixed(2))} growth={gCvr}
-              sub={`${fmt(pesananMasuk)} pesanan ÷ ${fmt(totalVisitor)} visitor`} />
-
-            <MetricCard label="AOV Order"
-              value={fmtRp(aovOrder.toFixed(0))}
-              sub={`Shopee · aov_order · ${fmt(pesananMasuk)} pesanan`} />
-
-            <MetricCard label="Cancel Rate"
-              value={fmtPct(cancelRate.toFixed(2))}
+            <MetricCard
+              label="Cancel Rate"
+              value={fmtPct(cancelRate)}
               warning={cancelRate > 5}
-              sub={`${fmt(pesananBatal)} batal ÷ ${fmt(pesananMasuk)} pesanan`} />
+              sub={`${fmt(pesananBatal)} batal ÷ ${fmt(pesananMasuk)} pesanan`}
+            />
 
-            <MetricCard label="Fail to Pick Up Rate"
-              value={fmtPct(failPickupRate.toFixed(2))}
+            <MetricCard
+              label="Fail Pickup Rate"
+              value={fmtPct(
+                failPickupRate
+              )}
               warning={failPickupRate > 2}
-              sub={`${fmt(gagalPickup)} gagal ÷ ${fmt(pesananMasuk)} pesanan`} />
+              sub="Pesanan gagal pickup"
+            />
+
+            <MetricCard
+              label="Customer Baru"
+              value={fmt(customerBaru)}
+              growth={gCustomer}
+              sub="Customer pertama kali order"
+            />
+
+            <MetricCard
+              label="Repeat Customer"
+              value={
+                filtered.length
+                ? fmtPct(
+                  filtered.reduce(
+                    (a,b)=>a+Number(b.repeat_customer_rate||0),0
+                  ) / filtered.length
+                )
+                : '0%'
+              }
+              sub="Repeat customer rate"
+            />
 
           </div>
 
@@ -725,9 +896,19 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
                   fontSize:12 }}>
                   <thead>
                     <tr style={{ background:'#FFF3ED' }}>
-                      {['Tanggal','Brand','Channel','GMV','Visitor',
-                        'Pesanan','Cancel Rate','AOV','CVR',
-                        'GMV Affiliate','Omzet Ads'].map(h => (
+                      {[
+                        'Tanggal',
+                        'Channel',
+                        'Brand',
+                        'GMV',
+                        'Pesanan',
+                        'Produk',
+                        'AOV',
+                        'Cancel Rate',
+                        'Customer Baru',
+                        'Repeat Rate',
+                        'Source'
+                      ].map(h => (
                         <th key={h} style={{ padding:'8px 10px',
                           color:'#FF6B35', fontWeight:500, fontSize:11,
                           whiteSpace:'nowrap',
@@ -741,47 +922,101 @@ Berikan: 1) Ringkasan performa 2) Temuan penting 3) Rekomendasi`
                     {filtered.slice(0,20).map(row => (
                       <tr key={row.id}
                         style={{ borderBottom:'0.5px solid #FFF3ED' }}>
-                        <td style={{ padding:'7px 10px', color:'#666',
-                          whiteSpace:'nowrap' }}>{row.tanggal}</td>
-                        <td style={{ padding:'7px 10px', color:'#1A1A1A',
-                          fontWeight:500 }}>{row.brand || '-'}</td>
-                        <td style={{ padding:'7px 10px' }}>
-                          <span style={{ fontSize:11, padding:'2px 8px',
-                            borderRadius:20, fontWeight:500,
-                            background: row.channel==='Shopee' ? '#FFF0E6'
-                              : row.channel==='Tiktok'||row.channel==='TikTok'
-                                ? '#F0F0FF'
-                              : row.channel==='Tokopedia' ? '#E6FBF0'
-                              : '#F3F4F6',
-                            color: row.channel==='Shopee' ? '#993C1D'
-                              : row.channel==='Tiktok'||row.channel==='TikTok'
-                                ? '#3C3489'
-                              : row.channel==='Tokopedia' ? '#0C5C2E'
-                              : '#374151',
-                          }}>{row.channel}</span>
+                        <td style={{
+                          padding:'7px 10px',
+                          color:'#666',
+                          whiteSpace:'nowrap'
+                        }}>
+                          {row.tanggal}
                         </td>
-                        <td style={{ padding:'7px 10px', textAlign:'right',
-                          fontWeight:600, color:'#1A1A1A', whiteSpace:'nowrap' }}>
-                          {fmtRp(row.omzet)}</td>
-                        <td style={{ padding:'7px 10px', textAlign:'right',
-                          color:'#666' }}>{fmt(row.pengunjung_toko)}</td>
-                        <td style={{ padding:'7px 10px', textAlign:'right',
-                          color:'#666' }}>{fmt(row.pesanan_masuk)}</td>
-                        <td style={{ padding:'7px 10px', textAlign:'right',
-                          color: Number(row.cancel_rate)>5 ? '#DC2626':'#666' }}>
-                          {fmtPct(Number(row.cancel_rate||0).toFixed(2))}</td>
-                        <td style={{ padding:'7px 10px', textAlign:'right',
-                          color:'#666', whiteSpace:'nowrap' }}>
-                          {fmtRp(row.aov_order)}</td>
-                        <td style={{ padding:'7px 10px', textAlign:'right',
-                          color:'#666' }}>
-                          {fmtPct(Number(row.visitor_cvr||0).toFixed(2))}</td>
-                        <td style={{ padding:'7px 10px', textAlign:'right',
-                          color:'#166534', whiteSpace:'nowrap' }}>
-                          {fmtRp(row.omzet_affiliate)}</td>
-                        <td style={{ padding:'7px 10px', textAlign:'right',
-                          color:'#666', whiteSpace:'nowrap' }}>
-                          {fmtRp(row.omzet_ads)}</td>
+
+                        <td style={{
+                          padding:'7px 10px'
+                        }}>
+                          <span style={{
+                            fontSize:11,
+                            padding:'2px 8px',
+                            borderRadius:20,
+                            background:'#FFF0E6',
+                            color:'#993C1D'
+                          }}>
+                            {row.channel}
+                          </span>
+                        </td>
+
+                        <td style={{
+                          padding:'7px 10px',
+                          fontWeight:500
+                        }}>
+                          {row.brand || '-'}
+                        </td>
+
+                        <td style={{
+                          padding:'7px 10px',
+                          textAlign:'right',
+                          fontWeight:600
+                        }}>
+                          {fmtRp(row.omzet)}
+                        </td>
+
+                        <td style={{
+                          padding:'7px 10px',
+                          textAlign:'right'
+                        }}>
+                          {fmt(row.pesanan_masuk)}
+                        </td>
+
+                        <td style={{
+                          padding:'7px 10px',
+                          textAlign:'right'
+                        }}>
+                          {fmt(row.jumlah_produk_terjual)}
+                        </td>
+
+                        <td style={{
+                          padding:'7px 10px',
+                          textAlign:'right'
+                        }}>
+                          {fmtRp(row.aov_order)}
+                        </td>
+
+                        <td style={{
+                          padding:'7px 10px',
+                          textAlign:'right',
+                          color:Number(row.cancel_rate)>5
+                            ? '#DC2626'
+                            : '#666'
+                        }}>
+                          {fmtPct(row.cancel_rate)}
+                        </td>
+
+                        <td style={{
+                          padding:'7px 10px',
+                          textAlign:'right'
+                        }}>
+                          {fmt(row.customer_baru)}
+                        </td>
+
+                        <td style={{
+                          padding:'7px 10px',
+                          textAlign:'right'
+                        }}>
+                          {fmtPct(row.repeat_customer_rate)}
+                        </td>
+
+                        <td style={{
+                          padding:'7px 10px'
+                        }}>
+                          <span style={{
+                            fontSize:11,
+                            background:'#DCFCE7',
+                            color:'#166534',
+                            padding:'2px 8px',
+                            borderRadius:20
+                          }}>
+                            {row.source || '-'}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

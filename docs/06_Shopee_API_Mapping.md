@@ -36,7 +36,7 @@
 |----------|--------|-----------------|-------------------------|--------|
 | `/api/v2/shop/auth_partner` | GET (redirect) | `partner_id`, `timestamp`, `sign`, `redirect` | OAuth authorize URL → `code`, `shop_id` | **Implemented** (`connect`) |
 | `/api/v2/auth/token/get` | POST | Body: `code`, `shop_id`, `partner_id` + query sign | `access_token`, `refresh_token`, `expire_in`, `shop_id` | **Implemented** (`callback`) |
-| `/api/v2/auth/access_token/get` | POST | Body: `refresh_token`, `shop_id`, `partner_id` + query sign | `access_token`, `refresh_token`, `expire_in` | **Planned** (`refreshToken` TODO) |
+| `/api/v2/auth/access_token/get` | POST | Body: `refresh_token`, `shop_id`, `partner_id` + query sign | `access_token`, `refresh_token`, `expire_in` | **Implemented** (`refreshToken`) |
 
 **Permission / scope:** Shop authorization for the seller shop; partner app must be approved for the target region (ID).
 
@@ -69,6 +69,7 @@
 |--------------|--------|
 | `tanggal` | Date of `create_time` |
 | `channel` | Hardcoded `'Shopee'` |
+| `brand` | From `marketplace_connections.brand` (backfills null-brand rows on re-sync) |
 | `omzet` | Sum of `total_amount` for non-cancelled orders |
 | `pesanan_masuk` | Count of orders |
 | `pesanan_batal` | Count where status `CANCELLED` / `IN_CANCEL` |
@@ -77,7 +78,8 @@
 | `pengunjung_toko`, `omzet_ads`, `omzet_affiliate`, … | **Not available** from Order APIs — leave null / existing values; need Ads/AMS later |
 
 **Notes:**
-- `get_order_list` max range is **15 days** per call; chunk longer windows.
+- `get_order_list` max range is **15 days** per call; sync chunks longer `dateStart`/`dateEnd` windows automatically.
+- Dashboard Sync button passes filter dates; without filters sync defaults to yesterday→today (WIB).
 - Visitor / CVR require traffic analytics APIs (often restricted) — mark as future gap.
 
 ---
@@ -206,7 +208,7 @@
 
 | Module | Primary APIs | Kilap tables | Overall status |
 |--------|--------------|--------------|----------------|
-| Auth | `auth_partner`, `token/get`, `access_token/get` | `marketplace_connections` | **Implemented** (+ refresh **Planned**) |
+| Auth | `auth_partner`, `token/get`, `access_token/get` | `marketplace_connections` | **Implemented** (incl. refresh) |
 | Shop Performance / Sales | `order/get_order_list`, `order/get_order_detail` | `penjualan_harian` | **Implemented** (partial metrics) |
 | Shopee Ads | `v2.ads.*` performance APIs | `ads_shopee` | **Waiting for Partner approval** |
 | Affiliate (AMS) | `v2.ams.get_*_performance` | `affiliate_*`, affiliate cols on `penjualan_harian` | **Waiting for Partner approval** |
@@ -219,7 +221,7 @@
 
 1. **Reuse existing business tables** — never create parallel Shopee-only sales tables; write into `penjualan_harian`, `ads_shopee`, `affiliate_*`, `livestream`.
 2. **Partner Console checklist** — enable products: Shop/Order, Ads, AMS, Livestream (as needed). AMS requires AMS app type + seller T&C.
-3. **Token lifecycle** — access tokens expire (~4h); implement `refreshToken()` before Ads/AMS cron sync.
+3. **Token lifecycle** — access tokens expire (~4h); `refreshToken()` is implemented and called automatically when sync detects expiry. Cron still needed for Ads/AMS.
 4. **Gaps after Order-based Sales sync** — store visitors, ads omzet, affiliate omzet still need Ads/AMS (or remain manual).
 5. **Legacy routes** — `app/api/shopee-auth` and `app/api/shopee-callback` remain available; new flow uses `/api/marketplace/*` + `lib/marketplace/providers/shopee.js`.
 
@@ -230,3 +232,4 @@
 | Date | Change |
 |------|--------|
 | 2026-08-01 | Initial mapping (Sprint 2 — Task 005A) |
+| 2026-08-05 | Sales sync honors date range + brand; refreshToken marked Implemented |
