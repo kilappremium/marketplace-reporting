@@ -6,7 +6,7 @@ export async function GET(request) {
 
   const PARTNER_ID   = process.env.SHOPEE_PARTNER_ID
   const PARTNER_KEY  = process.env.SHOPEE_PARTNER_KEY
-  const REDIRECT_URI = `https://dso-kilap-reporting.vercel.app/shopee-auth`
+  const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL}/api/shopee-callback`
 
   if (!PARTNER_ID || !PARTNER_KEY) {
     return Response.json({ error: 'SHOPEE_PARTNER_ID atau SHOPEE_PARTNER_KEY belum diset' }, { status: 500 })
