@@ -95,14 +95,30 @@ export default function DashboardPage() {
   // ─── Fetch semua data dari Supabase ──────────────────────
   useEffect(() => {
     fetchAll()
-  }, [])
+  }, [
+    filterStart,
+    filterEnd
+  ])
 
   async function fetchAll() {
     setLoading(true)
     setError('')
-    const today = new Date().toISOString().split('T')[0]
+    const today = new Date()
+      .toISOString()
+      .slice(0,10)
 
     try {
+      const params = new URLSearchParams()
+
+      if (filterStart)
+        params.set('start', filterStart)
+
+      if (filterEnd)
+        params.set('end', filterEnd)
+
+      const url =
+        `/api/report/sales?${params.toString()}`
+
       const [
         sales,
         salesTrend,
@@ -114,7 +130,7 @@ export default function DashboardPage() {
 
         getSalesTrend(30),
 
-        fetch('/api/report/sales')
+        fetch(url)
           .then(res => res.json()),
 
         supabase
@@ -187,20 +203,6 @@ export default function DashboardPage() {
     )
   ]
 
-  // ─── Default periode: bulan ini ──────────────────────────
-  const today = new Date()
-  const bulanIni =
-    allData.length > 0
-      ? String(allData[0].tanggal).slice(0,7)
-      : `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`
-  const bulanLalu = (() => {
-    const m = today.getMonth()
-    const y = today.getFullYear()
-    return m === 0
-      ? `${y-1}-12`
-      : `${y}-${String(m).padStart(2,'0')}`
-  })()
-
   // ─── Filter data utama ────────────────────────────────────
   function applyFilters(arr, start, end) {
     return arr.filter(r => {
@@ -208,15 +210,6 @@ export default function DashboardPage() {
       // Filter periode
       if (start && end) {
         if (r.tanggal < start || r.tanggal > end) return false
-      } else {
-        if (
-          !filterStart &&
-          !filterEnd &&
-          bulanIni &&
-          !r.tanggal.startsWith(bulanIni)
-        ) {
-          return false
-        }
       }
       // Filter brand
       if (filterBrand && r.brand !== filterBrand) return false
@@ -231,18 +224,10 @@ export default function DashboardPage() {
   }
 
   function applyFiltersPrev(arr) {
-    // Tentukan periode aktif
-    let activeStart, activeEnd
+    if (!filterStart || !filterEnd) return []
 
-    if (filterStart && filterEnd) {
-      activeStart = new Date(filterStart)
-      activeEnd = new Date(filterEnd)
-    } else {
-      // Default: dari tanggal 1 bulan ini sampai hari ini
-      const today = new Date()
-      activeStart = new Date(today.getFullYear(), today.getMonth(), 1)
-      activeEnd = new Date(today)
-    }
+    const activeStart = new Date(filterStart)
+    const activeEnd = new Date(filterEnd)
 
     // Hitung durasi periode aktif (dalam hari)
     const durasi = Math.round(
@@ -278,27 +263,24 @@ export default function DashboardPage() {
       if (!r.tanggal) return false
       if (start && end) {
         if (r.tanggal < start || r.tanggal > end) return false
-      } else {
-        if (!r.tanggal.startsWith(bulanIni)) return false
       }
       return true
     })
   }
 
   function applyLiveFiltersPrev(arr) {
-    if (filterStart && filterEnd) {
-      const start = new Date(filterStart)
-      const end = new Date(filterEnd)
-      const durasi = Math.round((end-start)/(1000*60*60*24))+1
-      const prevEnd = new Date(start)
-      prevEnd.setDate(prevEnd.getDate()-1)
-      const prevStart = new Date(prevEnd)
-      prevStart.setDate(prevStart.getDate()-durasi+1)
-      return arr.filter(r => r.tanggal &&
-        r.tanggal >= prevStart.toISOString().split('T')[0] &&
-        r.tanggal <= prevEnd.toISOString().split('T')[0])
-    }
-    return arr.filter(r => r.tanggal && r.tanggal.startsWith(bulanLalu))
+    if (!filterStart || !filterEnd) return []
+
+    const start = new Date(filterStart)
+    const end = new Date(filterEnd)
+    const durasi = Math.round((end-start)/(1000*60*60*24))+1
+    const prevEnd = new Date(start)
+    prevEnd.setDate(prevEnd.getDate()-1)
+    const prevStart = new Date(prevEnd)
+    prevStart.setDate(prevStart.getDate()-durasi+1)
+    return arr.filter(r => r.tanggal &&
+      r.tanggal >= prevStart.toISOString().split('T')[0] &&
+      r.tanggal <= prevEnd.toISOString().split('T')[0])
   }
 
   const filtered     = applyFilters(allData, filterStart, filterEnd)
@@ -414,19 +396,13 @@ export default function DashboardPage() {
   // ─── Label periode ────────────────────────────────────────
   const periodeLabel = filterStart && filterEnd
     ? `${filterStart} s/d ${filterEnd}`
-    : `Bulan ini (${bulanIni})`
+    : 'Semua data'
 
   const compareLabel = (() => {
-    let activeStart, activeEnd
+    if (!filterStart || !filterEnd) return '-'
 
-    if (filterStart && filterEnd) {
-      activeStart = new Date(filterStart)
-      activeEnd = new Date(filterEnd)
-    } else {
-      const today = new Date()
-      activeStart = new Date(today.getFullYear(), today.getMonth(), 1)
-      activeEnd = new Date(today)
-    }
+    const activeStart = new Date(filterStart)
+    const activeEnd = new Date(filterEnd)
 
     const durasi = Math.round(
       (activeEnd - activeStart) / (1000*60*60*24)

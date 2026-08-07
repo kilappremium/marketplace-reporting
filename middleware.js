@@ -41,6 +41,8 @@ const publicApiRoutes = [
   "/api/marketplace/refresh",
   "/api/marketplace/sync",
   "/api/ai-analysis/generate",
+  "/api/cron/marketplace-sync",
+  "/api/report/sales", 
 ];
 
 if (publicApiRoutes.some(route => pathname.startsWith(route))) {

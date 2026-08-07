@@ -6,11 +6,22 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
 
+  const today = new Date()
+
+  const defaultEnd =
+    today.toISOString().slice(0,10)
+
+  const defaultStart = new Date(
+    today.getTime() - (29 * 24 * 60 * 60 * 1000)
+  )
+    .toISOString()
+    .slice(0,10)
+
   const start =
-    searchParams.get("start") || "2026-01-01";
+    searchParams.get("start") || defaultStart
 
   const end =
-    searchParams.get("end") || "2026-01-31";
+    searchParams.get("end") || defaultEnd
 
 
   const { data, error } = await supabase
