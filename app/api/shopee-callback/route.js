@@ -69,21 +69,58 @@ export async function GET(request) {
 
 
 
-  // SIMPAN KE SUPABASE
+  // SIMPAN KE MARKETPLACE CONNECTIONS
+
+  const expireIn = Number(data.expire_in) || 0
+
+  const tokenExpiredAt = expireIn > 0
+    ? new Date(Date.now() + expireIn * 1000).toISOString()
+    : null
+
+
+  // ambil nama toko
+  const shopInfoPath = '/api/v2/shop/get_shop_info'
+
+  const shopTimestamp = Math.floor(Date.now()/1000)
+
+  const shopSignString =
+    `${PARTNER_ID}${shopInfoPath}${shopTimestamp}${data.access_token}${shop_id}`
+
+  const shopSign = crypto
+    .createHmac('sha256', PARTNER_KEY)
+    .update(shopSignString)
+    .digest('hex')
+
+
+  const shopResponse = await fetch(
+    `https://partner.shopeemobile.com${shopInfoPath}?partner_id=${PARTNER_ID}&timestamp=${shopTimestamp}&access_token=${data.access_token}&shop_id=${shop_id}&sign=${shopSign}`
+  )
+
+
+  const shopData = await shopResponse.json()
+
+  const shopName =
+    shopData.response?.shop_name || 'Shopee Store'
+
 
   const {error} = await supabaseAdmin
-    .from('shopee_connections')
-    .insert({
-
-      shop_id:Number(shop_id),
-
-      access_token:data.access_token,
-
-      refresh_token:data.refresh_token,
-
-      expire_in:data.expire_in
-
-    })
+    .from('marketplace_connections')
+    .upsert(
+      {
+        marketplace:'shopee',
+        shop_id:String(shop_id),
+        shop_name:shopName,
+        partner_id:String(PARTNER_ID),
+        access_token:data.access_token,
+        refresh_token:data.refresh_token,
+        token_expired_at:tokenExpiredAt,
+        status:'active',
+        last_error:null
+      },
+      {
+        onConflict:'marketplace,shop_id'
+      }
+    )
 
 
   if(error){
@@ -109,6 +146,8 @@ export async function GET(request) {
     message:'Shopee berhasil terhubung',
 
     shop_id,
+
+    shop_name:shopName,
 
     expire_in:data.expire_in
 
