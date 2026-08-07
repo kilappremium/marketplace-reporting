@@ -17,14 +17,18 @@ export async function GET(){
       await shopeeSync({})
 
 
+    const connectionId =
+      result.results?.[0]?.connection_id
+
+
     log = await createSyncLog(
-      result.connection_id
+      connectionId
     )
 
 
     await finishSyncLog(
       log.id,
-      result
+      result.results?.[0] || {}
     )
 
 
