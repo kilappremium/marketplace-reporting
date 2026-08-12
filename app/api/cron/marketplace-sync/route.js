@@ -8,68 +8,56 @@ import {
 
 export async function GET(){
 
-  let log = null
-
+  const logs = []
 
   try {
 
-    const result =
-      await shopeeSync({})
+    const result = await shopeeSync({})
 
+    for (const syncResult of result.results || []) {
 
-    const connectionId =
-      result.results?.[0]?.connection_id
+      const connectionId = syncResult.connection_id
 
+      const log = await createSyncLog(connectionId)
 
-    log = await createSyncLog(
-      connectionId
-    )
+      await finishSyncLog(
+        log.id,
+        syncResult
+      )
 
-
-    await finishSyncLog(
-      log.id,
-      result.results?.[0] || {}
-    )
-
+      logs.push({
+        connection_id: connectionId,
+        log_id: log.id,
+        status: 'success'
+      })
+    }
 
     return Response.json({
 
-      success:true,
+      success: true,
 
-      result
+      result,
+
+      logs
 
     })
 
-
   } catch(error){
-
 
     console.error(
       'CRON MARKETPLACE SYNC ERROR:',
       error
     )
 
-
-    if(log){
-
-      await failSyncLog(
-        log.id,
-        error
-      )
-
-    }
-
-
     return Response.json({
 
-      success:false,
+      success: false,
 
-      error:error.message
+      error: error.message
 
     },{
-      status:500
+      status: 500
     })
-
 
   }
 
