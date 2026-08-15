@@ -6,13 +6,21 @@ import {
   failSyncLog
 } from '@/lib/sync/logger'
 
-export async function GET(){
+export async function GET(request){
 
   const logs = []
 
   try {
 
-    const result = await shopeeSync({})
+    const { searchParams } = new URL(request.url)
+
+    const dateStart = searchParams.get('dateStart')
+    const dateEnd = searchParams.get('dateEnd')
+
+    const result = await shopeeSync({
+      dateStart: dateStart || undefined,
+      dateEnd: dateEnd || undefined,
+    })
 
     for (const syncResult of result.results || []) {
 
@@ -42,23 +50,24 @@ export async function GET(){
 
     })
 
-  } catch(error){
+  } catch (error) {
 
-    console.error(
-      'CRON MARKETPLACE SYNC ERROR:',
-      error
-    )
+    console.error('CRON MARKETPLACE SYNC ERROR')
+    console.error('NAME:', error?.name)
+    console.error('MESSAGE:', error?.message)
+    console.error('CAUSE:', error?.cause)
+    console.error('STACK:', error?.stack)
 
     return Response.json({
-
       success: false,
-
-      error: error.message
-
-    },{
+      error: error?.message || 'Unknown error',
+      name: error?.name || null,
+      cause: error?.cause
+        ? String(error.cause)
+        : null,
+    }, {
       status: 500
     })
-
   }
 
 }
