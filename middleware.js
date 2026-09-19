@@ -42,6 +42,7 @@ const publicApiRoutes = [
   "/api/marketplace/sync",
   "/api/ai-analysis/generate",
   "/api/cron/marketplace-sync",
+  "/api/cron/shopee-sync",
   "/api/report/sales", 
 ];
 
